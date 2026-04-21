@@ -385,11 +385,17 @@
   padding: 8px 10px;
 }
 
-.helpCmdBlock b {
-  display: block;
-  color: #27488a;
+.helpCmdLabel {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #eaf0ff;
+  color: #264683;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  padding: 4px 8px;
   margin-bottom: 6px;
-  font-size: 12px;
 }
 
 .helpCmdBlock pre {
@@ -400,6 +406,63 @@
   font-size: 12px;
   line-height: 1.45;
   color: #17315e;
+}
+
+.helpCallout {
+  margin-top: 8px;
+  border-radius: 10px;
+  border: 1px solid #dbe4fb;
+  background: #f6f9ff;
+  padding: 8px 10px;
+}
+
+.helpCallout b {
+  display: block;
+  color: #27488a;
+  margin-bottom: 4px;
+}
+
+.helpCallout span {
+  color: #3c558b;
+  font-size: 12px;
+}
+
+.helpCalloutWarn {
+  border-color: #f4d6a0;
+  background: linear-gradient(180deg, #fffaf0, #fff5df);
+}
+
+.helpCalloutWarn b {
+  color: #8b5a12;
+}
+
+.helpCalloutWarn span {
+  color: #7e5620;
+}
+
+.helpPlatformGrid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.helpPlatformCard {
+  border: 1px solid #dbe4fb;
+  border-radius: 12px;
+  background: #fbfdff;
+  padding: 8px;
+}
+
+.helpPlatformHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.helpPlatformHead b {
+  color: #24417a;
 }
 
 @media (max-width: 1200px) {
@@ -421,6 +484,10 @@
   }
 
   .helpGlossaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .helpPlatformGrid {
     grid-template-columns: 1fr;
   }
 }

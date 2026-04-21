@@ -67,6 +67,7 @@ export function MotorDetailPanel({
   const [rsReadValue, setRsReadValue] = React.useState('');
   const [showLessCommonDamiaoRw, setShowLessCommonDamiaoRw] = React.useState(false);
   const [advancedRiskAccepted, setAdvancedRiskAccepted] = React.useState(false);
+  const [advancedRiskDialogOpen, setAdvancedRiskDialogOpen] = React.useState(false);
   const [opBusy, setOpBusy] = React.useState(false);
 
   if (!activeMotor || !activeControl) {
@@ -117,15 +118,36 @@ export function MotorDetailPanel({
       return;
     }
     if (!advancedRiskAccepted) {
-      const accepted = window.confirm(t('advanced_risk_confirm'));
-      if (!accepted) return;
-      setAdvancedRiskAccepted(true);
+      setAdvancedRiskDialogOpen(true);
+      return;
     }
+    setAdvancedOpen(true);
+  };
+
+  const confirmOpenAdvanced = () => {
+    setAdvancedRiskAccepted(true);
+    setAdvancedRiskDialogOpen(false);
     setAdvancedOpen(true);
   };
 
   return (
     <>
+      {advancedRiskDialogOpen && (
+        <div className="armDialogMask" role="dialog" aria-modal="true" aria-live="assertive">
+          <div className="armDialogCard">
+            <h3>{t('advanced_show')}</h3>
+            <p>{t('advanced_risk_confirm')}</p>
+            <div className="row toolbar compactToolbar">
+              <button className="ghostBtn" onClick={() => setAdvancedRiskDialogOpen(false)}>
+                {t('cancel')}
+              </button>
+              <button className="dangerBtn" onClick={confirmOpenAdvanced}>
+                {t('confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="sectionTitle">
         <h2>{VENDOR_LABELS[activeMotor.vendor] || activeMotor.vendor} {toHex(activeMotor.esc_id)}</h2>
         <span>{t('mst')} {toHex(activeMotor.mst_id)} | {t('updated')} {formatLocal(activeMotor.updated_at_ms)}</span>

@@ -28,25 +28,40 @@ export function HelpCenterModal({ open, page, onClose }) {
     t('help_troubleshoot_4'),
   ];
   const quickStartItems = [t('help_quick_1'), t('help_quick_2'), t('help_quick_3'), t('help_quick_4')];
+  const modeCmd = (name, cmd) => ({ name, cmd });
+  const setupModesByPlatform = (platform) => {
+    const channel = platform === 'windows' ? 'can0@1000000' : 'can0';
+    return [
+      modeCmd(t('help_mode_router'), 'motorbridge-gateway -- --bind 127.0.0.1:9002'),
+      modeCmd(
+        t('help_mode_auto'),
+        `motorbridge-gateway -- --bind 127.0.0.1:9002 --transport auto --channel ${channel}`,
+      ),
+      modeCmd(
+        t('help_mode_socketcan'),
+        `motorbridge-gateway -- --bind 127.0.0.1:9002 --transport socketcan --channel ${channel}`,
+      ),
+      modeCmd(
+        t('help_mode_socketcanfd'),
+        `motorbridge-gateway -- --bind 127.0.0.1:9002 --transport socketcanfd --channel ${channel}`,
+      ),
+    ];
+  };
   const setupByPlatform = [
     {
       name: t('help_platform_linux'),
-      installCmd: 'python3 -m pip install -U motorbridge',
-      gatewayCmd: `motorbridge-gateway -- \\
-  --bind 127.0.0.1:9002 --vendor damiao --transport auto \\
-  --channel can0 --model 4340P --motor-id 0x01 --feedback-id 0x11 --dt-ms 20`,
+      installCmd: 'pip install -U motorbridge',
+      modeCmds: setupModesByPlatform('linux'),
     },
     {
       name: t('help_platform_macos'),
-      installCmd: 'python3 -m pip install -U motorbridge',
-      gatewayCmd: `motorbridge-gateway -- \\
-  --bind 127.0.0.1:9002 --vendor damiao --transport auto \\
-  --channel can0 --model 4340P --motor-id 0x01 --feedback-id 0x11 --dt-ms 20`,
+      installCmd: 'pip install -U motorbridge',
+      modeCmds: setupModesByPlatform('macos'),
     },
     {
       name: t('help_platform_windows'),
-      installCmd: 'py -m pip install -U motorbridge',
-      gatewayCmd: `motorbridge-gateway -- --bind 127.0.0.1:9002 --vendor damiao --transport auto --channel can0@1000000 --model 4340P --motor-id 0x01 --feedback-id 0x11 --dt-ms 20`,
+      installCmd: 'pip install -U motorbridge',
+      modeCmds: setupModesByPlatform('windows'),
     },
   ];
   const dmSerialByPlatform = [
@@ -107,13 +122,30 @@ export function HelpCenterModal({ open, page, onClose }) {
               <li>{t('help_setup_1')}</li>
               <li>{t('help_setup_2')}</li>
             </ul>
-            {setupByPlatform.map((item) => (
-              <div key={item.name} className="helpCmdBlock">
-                <b>{item.name}</b>
-                <pre>{`${t('help_setup_install_cmd')}\n${item.installCmd}`}</pre>
-                <pre>{`${t('help_setup_gateway_cmd')}\n${item.gatewayCmd}`}</pre>
-              </div>
-            ))}
+            <div className="helpCallout helpCalloutWarn">
+              <b>{t('help_setup_risk_title')}</b>
+              <span>{t('help_setup_risk_desc')}</span>
+            </div>
+            <div className="helpPlatformGrid">
+              {setupByPlatform.map((item) => (
+                <article key={item.name} className="helpPlatformCard">
+                  <div className="helpPlatformHead">
+                    <b>{item.name}</b>
+                    <span className="chip">{t('help_setup_install_cmd')}</span>
+                  </div>
+                  <div className="helpCmdBlock">
+                    <span className="helpCmdLabel">{t('help_setup_install_cmd')}</span>
+                    <pre>{item.installCmd}</pre>
+                  </div>
+                  {item.modeCmds.map((mode) => (
+                    <div key={`${item.name}-${mode.name}`} className="helpCmdBlock">
+                      <span className="helpCmdLabel">{`${t('help_setup_gateway_cmd')} · ${mode.name}`}</span>
+                      <pre>{mode.cmd}</pre>
+                    </div>
+                  ))}
+                </article>
+              ))}
+            </div>
             <p className="tip">{t('help_setup_3')}</p>
           </section>
 
@@ -123,12 +155,20 @@ export function HelpCenterModal({ open, page, onClose }) {
               <li>{t('help_dmserial_1')}</li>
               <li>{t('help_dmserial_2')}</li>
             </ul>
-            {dmSerialByPlatform.map((item) => (
-              <div key={`dm-${item.name}`} className="helpCmdBlock">
-                <b>{item.name}</b>
-                <pre>{`${t('help_dmserial_gateway_cmd')}\n${item.gatewayCmd}`}</pre>
-              </div>
-            ))}
+            <div className="helpPlatformGrid">
+              {dmSerialByPlatform.map((item) => (
+                <article key={`dm-${item.name}`} className="helpPlatformCard">
+                  <div className="helpPlatformHead">
+                    <b>{item.name}</b>
+                    <span className="chip">{t('help_center_dmserial_title')}</span>
+                  </div>
+                  <div className="helpCmdBlock">
+                    <span className="helpCmdLabel">{t('help_dmserial_gateway_cmd')}</span>
+                    <pre>{item.gatewayCmd}</pre>
+                  </div>
+                </article>
+              ))}
+            </div>
           </section>
 
           <section className="helpCenterSection">

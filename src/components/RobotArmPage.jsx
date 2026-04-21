@@ -115,6 +115,7 @@ export function RobotArmPage() {
   const [firstUseOpen, setFirstUseOpen] = React.useState(false);
   const [demoAction, setDemoAction] = React.useState('safe_seq');
   const [demoBusy, setDemoBusy] = React.useState(false);
+  const [zeroCheckBusy, setZeroCheckBusy] = React.useState(false);
   const [zeroConfirm, setZeroConfirm] = React.useState({
     open: false,
     title: '',
@@ -236,8 +237,8 @@ export function RobotArmPage() {
     return out;
   }, [robotArmJointRows]);
 
-  const zeroSafety = React.useMemo(() => {
-    const notReady = robotArmJointRows
+  const computeZeroSafety = React.useCallback((rows) => {
+    const notReady = (rows || [])
       .map((row) => {
         const p = Number(row?.hit?.pos);
         if (!Number.isFinite(p)) return { joint: row.joint, pos: null };
@@ -249,7 +250,9 @@ export function RobotArmPage() {
       ok: notReady.length === 0,
       notReady,
     };
-  }, [robotArmJointRows]);
+  }, []);
+
+  const zeroSafety = React.useMemo(() => computeZeroSafety(robotArmJointRows), [computeZeroSafety, robotArmJointRows]);
 
   const onlineCount = React.useMemo(
     () => robotArmJointRows.filter((row) => Boolean(row?.hit?.online)).length,
@@ -477,37 +480,52 @@ export function RobotArmPage() {
   }, [t]);
 
   const onZeroAllSafe = React.useCallback(async () => {
-    if (!zeroSafety.ok) {
-      const short = zeroSafety.notReady
+    if (zeroCheckBusy) return;
+    setZeroCheckBusy(true);
+    try {
+      const preRows = rowsRef.current || [];
+      for (const row of preRows) {
+        if (!row?.hit) continue;
+        await refreshMotorState(row.hit);
+        await sleep(20);
+      }
+      await sleep(80);
+
+      const freshSafety = computeZeroSafety(rowsRef.current || []);
+      if (!freshSafety.ok) {
+        const short = freshSafety.notReady
         .slice(0, 4)
         .map((x) => `J${x.joint}${x.pos == null ? '(?)' : `(${x.pos.toFixed(2)})`}`)
         .join(', ');
-      const more = zeroSafety.notReady.length > 4 ? ` +${zeroSafety.notReady.length - 4}` : '';
-      const msg = t('arm_zero_all_blocked', { joints: `${short}${more}`, eps: ZERO_SAFE_EPS_RAD.toFixed(2) });
-      setLimitWarn(msg);
-      showLimitToast(msg);
-      const forceConfirm = await askZeroConfirm({
-        title: t('arm_zero_all_force_title'),
-        message: `${msg}\n\n${t('arm_zero_all_force_hint')}`,
+        const more = freshSafety.notReady.length > 4 ? ` +${freshSafety.notReady.length - 4}` : '';
+        const msg = t('arm_zero_all_blocked', { joints: `${short}${more}`, eps: ZERO_SAFE_EPS_RAD.toFixed(2) });
+        setLimitWarn(msg);
+        showLimitToast(msg);
+        const forceConfirm = await askZeroConfirm({
+          title: t('arm_zero_all_force_title'),
+          message: `${msg}\n\n${t('arm_zero_all_force_hint')}`,
+          danger: true,
+        });
+        if (!forceConfirm) return;
+      }
+
+      const c1 = await askZeroConfirm({
+        title: t('arm_zero_all_confirm_title'),
+        message: t('arm_zero_all_confirm_1'),
         danger: true,
       });
-      if (!forceConfirm) return;
+      if (!c1) return;
+      const c2 = await askZeroConfirm({
+        title: t('arm_zero_all_confirm_title'),
+        message: t('arm_zero_all_confirm_2'),
+        danger: true,
+      });
+      if (!c2) return;
+      await zeroAllRobotArm();
+    } finally {
+      setZeroCheckBusy(false);
     }
-
-    const c1 = await askZeroConfirm({
-      title: t('arm_zero_all_confirm_title'),
-      message: t('arm_zero_all_confirm_1'),
-      danger: true,
-    });
-    if (!c1) return;
-    const c2 = await askZeroConfirm({
-      title: t('arm_zero_all_confirm_title'),
-      message: t('arm_zero_all_confirm_2'),
-      danger: true,
-    });
-    if (!c2) return;
-    await zeroAllRobotArm();
-  }, [askZeroConfirm, showLimitToast, t, zeroAllRobotArm, zeroSafety]);
+  }, [askZeroConfirm, computeZeroSafety, refreshMotorState, showLimitToast, t, zeroAllRobotArm, zeroCheckBusy]);
 
   const runDemo = React.useCallback(async () => {
     if (demoBusy) return;
@@ -597,7 +615,8 @@ export function RobotArmPage() {
     enableAllRobotArm,
   ]);
 
-  const armToolbarBusy = armBulkBusy || armScanBusy || armSelfCheckBusy || paramBusy || demoBusy || urdfReplayBusy;
+  const armToolbarBusy =
+    armBulkBusy || armScanBusy || armSelfCheckBusy || paramBusy || demoBusy || urdfReplayBusy || zeroCheckBusy;
   const perJointBusy = armBulkBusy || paramBusy || urdfReplayBusy;
 
   const openImportTrailDialog = React.useCallback(() => {
