@@ -175,6 +175,7 @@ export function useMotorStudio() {
     verifyHit: motorControl.verifyHit,
     setIdFor: motorControl.setIdFor,
     refreshMotorState: motorControl.refreshMotorState,
+    runMotorOp: motorControl.runMotorOp,
     ensureRobotArmCards: robotArm.ensureRobotArmCards,
     scanRobotArmJoint: robotArm.scanRobotArmJoint,
     scanRobotArmAll: robotArm.scanRobotArmAll,

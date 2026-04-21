@@ -9,6 +9,73 @@ import {
 import { SET_ID_VENDORS } from './constants';
 import { CMD_TIMEOUTS } from './appConfig';
 import { buildProbePayload, buildSetIdPayload } from './vendors';
+import { REBOT_ARM_JOINT_LIMITS } from './robotArm';
+
+const lastMitSentAtByMotor = new Map();
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function sleepMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clampMitForSafety(h, mode, target, kp, kd, tau) {
+  if (String(mode) !== 'mit') {
+    return { target, kp, kd, tau, notes: [] };
+  }
+
+  const notes = [];
+  let safeTarget = target;
+  let safeKp = Math.max(0, kp);
+  let safeKd = Math.max(0, kd);
+  let safeTau = tau;
+
+  const joint = Number(h?.joint);
+  const lim = REBOT_ARM_JOINT_LIMITS[joint];
+  if (lim && Number.isFinite(lim.min) && Number.isFinite(lim.max)) {
+    const clipped = clamp(safeTarget, lim.min, lim.max);
+    if (Math.abs(clipped - safeTarget) > 1e-9) {
+      notes.push(`target clipped by joint limit ${lim.min.toFixed(3)}..${lim.max.toFixed(3)}`);
+      safeTarget = clipped;
+    }
+  }
+
+  if (String(h?.vendor) === 'damiao' && joint === 7) {
+    const prev = { kp: safeKp, kd: safeKd, tau: safeTau };
+    safeKp = clamp(safeKp, 0, 8);
+    safeKd = clamp(safeKd, 0, 0.25);
+    safeTau = clamp(safeTau, -0.8, 0.8);
+    if (
+      Math.abs(prev.kp - safeKp) > 1e-9 ||
+      Math.abs(prev.kd - safeKd) > 1e-9 ||
+      Math.abs(prev.tau - safeTau) > 1e-9
+    ) {
+      notes.push('joint7 MIT safety clamp applied (kp<=8, kd<=0.25, |tau|<=0.8)');
+    }
+  }
+
+  if (String(h?.vendor) === 'damiao' && Number.isFinite(Number(h?.pos))) {
+    const currentPos = Number(h.pos);
+    const maxStep = joint === 7 ? 0.12 : 0.2;
+    const prevTarget = safeTarget;
+    safeTarget = clamp(safeTarget, currentPos - maxStep, currentPos + maxStep);
+    if (Math.abs(prevTarget - safeTarget) > 1e-9) {
+      notes.push(
+        `MIT step clamp applied around current pos=${currentPos.toFixed(3)} with max_step=${maxStep.toFixed(3)}`,
+      );
+    }
+  }
+
+  return {
+    target: safeTarget,
+    kp: safeKp,
+    kd: safeKd,
+    tau: safeTau,
+    notes,
+  };
+}
 
 export async function verifyHitOp({ h, vendors, setTargetFor, sendCmd, setHits, closeBusQuietly, pushLog }) {
   try {
@@ -85,17 +152,17 @@ export async function controlMotorOp({
   pushLog,
 }) {
   const c = { ...(controls[motorKey(h)] || defaultControlsForHit(h)), ...(controlOverride || {}) };
-  const target = parseNum(c.target, 0);
+  let target = parseNum(c.target, 0);
   const vlim = parseNum(c.vlim, 1);
-  const kp = parseNum(c.kp, 30);
-  const kd = parseNum(c.kd, 1);
-  const tau = parseNum(c.tau, 0);
+  let kp = parseNum(c.kp, 30);
+  let kd = parseNum(c.kd, 1);
+  let tau = parseNum(c.tau, 0);
   const ratio = parseNum(c.ratio, 0.1);
 
   try {
     await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
 
-    if (action === 'enable' || action === 'disable' || action === 'stop') {
+    if (action === 'enable' || action === 'disable' || action === 'stop' || action === 'clear_error') {
       const ret = await sendCmd(action, { vendor: h.vendor }, CMD_TIMEOUTS.controlMs);
       if (!ret.ok) throw new Error(ret.error || `${action} failed`);
       pushLog(`${action} ${h.vendor} ${toHex(h.esc_id)} ok`, 'ok');
@@ -103,8 +170,31 @@ export async function controlMotorOp({
         const enabled = action === 'enable';
         setControls((prev) => ({ ...prev, [motorKey(h)]: { ...(prev[motorKey(h)] || c), enabled } }));
       }
+      if (action === 'clear_error') {
+        pushLog(`hint: re-enable ${h.vendor} ${toHex(h.esc_id)} after clear_error`, 'info');
+      }
       await closeBusQuietly();
       return true;
+    }
+
+    if (c.mode === 'mit') {
+      const safe = clampMitForSafety(h, c.mode, target, kp, kd, tau);
+      target = safe.target;
+      kp = safe.kp;
+      kd = safe.kd;
+      tau = safe.tau;
+      safe.notes.forEach((line) => pushLog(`${h.vendor} ${toHex(h.esc_id)} ${line}`, 'info'));
+
+      if (String(h.vendor) === 'damiao') {
+        const mk = motorKey(h);
+        const now = Date.now();
+        const last = Number(lastMitSentAtByMotor.get(mk) || 0);
+        const minGapMs = 120;
+        if (now - last < minGapMs) {
+          await sleepMs(minGapMs - (now - last));
+        }
+        lastMitSentAtByMotor.set(mk, Date.now());
+      }
     }
 
     let op = 'pos_vel';
@@ -124,7 +214,14 @@ export async function controlMotorOp({
     const ret = await sendCmd(op, payload, CMD_TIMEOUTS.verifyMs);
     if (!ret.ok) throw new Error(ret.error || `${op} failed`);
 
-    pushLog(`move ${h.vendor} ${toHex(h.esc_id)} mode=${c.mode} target=${target.toFixed(3)} ok`, 'ok');
+    if (c.mode === 'mit') {
+      pushLog(
+        `move ${h.vendor} ${toHex(h.esc_id)} mode=mit target=${target.toFixed(3)} kp=${kp.toFixed(3)} kd=${kd.toFixed(3)} tau=${tau.toFixed(3)} ok`,
+        'ok',
+      );
+    } else {
+      pushLog(`move ${h.vendor} ${toHex(h.esc_id)} mode=${c.mode} target=${target.toFixed(3)} ok`, 'ok');
+    }
     setHits((prev) => mergeHitsByVendor(prev, [{ ...h, updated_at_ms: Date.now() }]));
     await closeBusQuietly();
     return true;
@@ -182,14 +279,24 @@ export async function refreshMotorStateOp({ h, vendors, setTargetFor, sendCmd, s
     if (!ret.ok) throw new Error(ret.error || 'state_once failed');
 
     const d = ret.data || {};
+    const flags = d.flags && typeof d.flags === 'object' ? d.flags : undefined;
     setHits((prev) =>
       mergeHitsByVendor(prev, [
         {
           ...h,
           status: Number(d.status_code ?? h.status ?? Number.NaN),
+          status_name: String(d.status_name ?? h.status_name ?? ''),
           pos: Number(d.pos ?? h.pos ?? Number.NaN),
           vel: Number(d.vel ?? h.vel ?? Number.NaN),
           torq: Number(d.torq ?? h.torq ?? Number.NaN),
+          t_mos: Number(d.t_mos ?? h.t_mos ?? Number.NaN),
+          t_rotor: Number(d.t_rotor ?? h.t_rotor ?? Number.NaN),
+          has_value: Boolean(d.has_value ?? h.has_value),
+          arbitration_id: Number(d.arbitration_id ?? h.arbitration_id ?? Number.NaN),
+          can_id: Number(d.can_id ?? h.can_id ?? Number.NaN),
+          device_id: Number(d.device_id ?? h.device_id ?? Number.NaN),
+          motor_id: Number(d.motor_id ?? h.motor_id ?? Number.NaN),
+          flags: flags ?? h.flags,
           online: true,
           last_check_ms: Date.now(),
           updated_at_ms: Date.now(),
@@ -228,14 +335,24 @@ export async function checkOnlineOnceOp({
     if (!ret.ok) throw new Error(ret.error || 'state_once failed');
 
     const d = ret.data || {};
+    const flags = d.flags && typeof d.flags === 'object' ? d.flags : undefined;
     setHits((prev) =>
       mergeHitsByVendor(prev, [
         {
           ...h,
           status: Number(d.status_code ?? h.status ?? Number.NaN),
+          status_name: String(d.status_name ?? h.status_name ?? ''),
           pos: Number(d.pos ?? h.pos ?? Number.NaN),
           vel: Number(d.vel ?? h.vel ?? Number.NaN),
           torq: Number(d.torq ?? h.torq ?? Number.NaN),
+          t_mos: Number(d.t_mos ?? h.t_mos ?? Number.NaN),
+          t_rotor: Number(d.t_rotor ?? h.t_rotor ?? Number.NaN),
+          has_value: Boolean(d.has_value ?? h.has_value),
+          arbitration_id: Number(d.arbitration_id ?? h.arbitration_id ?? Number.NaN),
+          can_id: Number(d.can_id ?? h.can_id ?? Number.NaN),
+          device_id: Number(d.device_id ?? h.device_id ?? Number.NaN),
+          motor_id: Number(d.motor_id ?? h.motor_id ?? Number.NaN),
+          flags: flags ?? h.flags,
           online: true,
           last_check_ms: Date.now(),
           updated_at_ms: Date.now(),

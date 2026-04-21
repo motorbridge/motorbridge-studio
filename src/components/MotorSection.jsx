@@ -28,6 +28,7 @@ export function MotorSection() {
     setIdFor,
     verifyHit,
     refreshMotorState,
+    runMotorOp,
     uiPrefs,
     toggleUiPref,
   } = useMotorStudioContext();
@@ -103,6 +104,7 @@ export function MotorSection() {
               removeMotorCard={removeMotorCard}
               moveMotorCard={moveMotorCard}
               probeMotor={probeMotor}
+              zeroMotor={zeroMotor}
             />
 
             <div className="motorPanel">
@@ -117,6 +119,7 @@ export function MotorSection() {
                 setIdFor={setIdFor}
                 verifyHit={verifyHit}
                 refreshMotorState={refreshMotorState}
+                runMotorOp={runMotorOp}
               />
             </div>
           </div>

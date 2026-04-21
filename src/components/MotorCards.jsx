@@ -13,6 +13,7 @@ export function MotorCards({
   removeMotorCard,
   moveMotorCard,
   probeMotor,
+  zeroMotor,
 }) {
   const { t } = useI18n();
   const onDragStart = (e, key) => {
@@ -89,6 +90,18 @@ export function MotorCards({
             <div className="motorMeta motorSummary">{scanSummary(hit)}</div>
             <div className="motorMeta"><strong>{t('updated')}</strong> {formatLocal(hit.updated_at_ms)}</div>
             <div className="motorMeta"><strong>{t('last_check')}</strong> {formatLocal(hit.last_check_ms)}</div>
+            <div className="row compactToolbar">
+              <button
+                className="small ghostBtn"
+                disabled={!connected}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  zeroMotor(hit);
+                }}
+              >
+                {t('zero_set')}
+              </button>
+            </div>
           </button>
         );
       })}

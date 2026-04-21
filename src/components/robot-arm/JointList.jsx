@@ -13,6 +13,7 @@ export function JointList({
   connected,
   scanRobotArmJoint,
   refreshMotorState,
+  zeroMotor,
 }) {
   const { t } = useI18n();
   return (
@@ -71,6 +72,17 @@ export function JointList({
                 }}
               >
                 {t('refresh_state')}
+              </button>
+              <button
+                className="small ghostBtn"
+                disabled={!connected}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  zeroMotor(row.hit);
+                }}
+                title={t('zero_set')}
+              >
+                {t('arm_zero_current')}
               </button>
             </div>
           </div>

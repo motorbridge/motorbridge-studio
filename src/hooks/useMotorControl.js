@@ -81,6 +81,31 @@ export function useMotorControl({
     setControls((prev) => ({ ...prev, [key]: defaultControlsForHit(h) }));
   };
 
+  const runMotorOp = async (
+    h,
+    op,
+    payload = {},
+    timeoutMs = 4000,
+    options = { setTarget: true, closeBusAfter: true },
+  ) => {
+    try {
+      if (options?.setTarget !== false) {
+        await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+      }
+      const ret = await sendCmd(op, payload, timeoutMs);
+      if (!ret?.ok) throw new Error(ret?.error || `${op} failed`);
+      pushLog(`${op} ${h.vendor} ${toHex(h.esc_id)} ok`, 'ok');
+      return ret;
+    } catch (e) {
+      pushLog(`${op} ${h.vendor} ${toHex(h.esc_id)} failed: ${e.message || e}`, 'err');
+      throw e;
+    } finally {
+      if (options?.closeBusAfter !== false) {
+        await closeBusQuietly();
+      }
+    }
+  };
+
   return {
     patchControl,
     verifyHit,
@@ -90,5 +115,6 @@ export function useMotorControl({
     refreshMotorState,
     probeMotor,
     resetControlFor,
+    runMotorOp,
   };
 }

@@ -200,6 +200,64 @@
   font-size: 11px;
 }
 
+.motorAdvancedPanel {
+  margin-top: 10px;
+  border: 1px dashed #c8d7fb;
+  border-radius: 12px;
+  padding: 10px;
+  background: linear-gradient(180deg, #ffffff, #f7faff);
+}
+
+.damiaoRwList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.damiaoRwChip {
+  border: 1px solid #ced8fb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334a83;
+  padding: 8px;
+  text-align: left;
+  display: grid;
+  gap: 2px;
+  transition: border-color 140ms ease, box-shadow 160ms ease, transform 100ms ease;
+}
+
+.damiaoRwChip:hover {
+  border-color: #8ca6fa;
+  box-shadow: 0 4px 12px rgba(58, 93, 194, 0.14);
+  transform: translateY(-1px);
+}
+
+.damiaoRwChip .rid {
+  font-size: 11px;
+  font-weight: 700;
+  color: #5670ae;
+}
+
+.damiaoRwChip .name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.damiaoRwChip .type {
+  font-size: 11px;
+  color: #5b6f9e;
+}
+
+.damiaoRwChip .range {
+  font-size: 11px;
+  color: #68789f;
+}
+
+.damiaoRwChip.lessCommon {
+  background: #f9fbff;
+}
+
 @media (max-width: 1200px) {
   .motorLayout {
     grid-template-columns: 1fr;
@@ -310,6 +368,16 @@
   font-size: 12px;
   color: #4b5f93;
   margin-bottom: 6px;
+}
+
+.armJointCard .compactToolbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.armJointCard .compactToolbar .small {
+  width: 100%;
 }
 
 .armFields {

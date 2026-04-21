@@ -65,6 +65,7 @@ export function RobotArmPage() {
     writeRobotArmControlParams,
     patchControl,
     controlMotor,
+    zeroMotor,
     refreshMotorState,
     uiPrefs,
     setUiPref,
@@ -285,6 +286,7 @@ export function RobotArmPage() {
   const scheduleLiveMove = React.useCallback(
     (row, targetText) => {
       if (!liveMove || !connected || armBulkBusy) return;
+      if (String(row?.control?.mode) === 'mit') return;
       const hit = row?.hit;
       if (!hit) return;
       pendingLiveMoveRef.current = { row, targetText };
@@ -871,6 +873,7 @@ export function RobotArmPage() {
           connected={connected}
           scanRobotArmJoint={scanRobotArmJoint}
           refreshMotorState={refreshMotorState}
+          zeroMotor={zeroMotor}
         />
 
         <div className="armRightPane">
