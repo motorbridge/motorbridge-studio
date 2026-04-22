@@ -1,4 +1,5 @@
 import React from 'react';
+import { BrandWatermark } from './components/BrandWatermark';
 import { HeaderBar } from './components/HeaderBar';
 import { QuickMenu } from './components/QuickMenu';
 import { ConnectionPanel } from './components/ConnectionPanel';
@@ -20,6 +21,7 @@ export default function App() {
   return (
     <MotorStudioProvider value={studio}>
       <div className="app shell">
+        <BrandWatermark />
         <HeaderBar />
 
         {studio.menuOpen && <QuickMenu />}

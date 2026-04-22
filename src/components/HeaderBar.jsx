@@ -5,12 +5,18 @@ import { useMotorStudioContext } from '../hooks/useMotorStudioContext';
 export function HeaderBar() {
   const { t, locale, setLocale } = useI18n();
   const { connected, connText, setMenuOpen } = useMotorStudioContext();
+  const logoUrl = 'https://www.mouser.ca/images/suppliers/logos/seeed-studio.png';
 
   return (
     <header className="hero">
-      <div>
-        <h1>{t('app_title')}</h1>
-        <p>{t('app_subtitle')}</p>
+      <div className="heroBrand">
+        <div className="heroLogoWrap">
+          <img className="heroLogo" src={logoUrl} alt="Seeed Studio logo" loading="eager" referrerPolicy="no-referrer" />
+        </div>
+        <div className="heroTitleBlock">
+          <h1>{t('app_title')}</h1>
+          <p>{t('app_subtitle')}</p>
+        </div>
       </div>
       <div className="heroActions">
         <label className="langBox">

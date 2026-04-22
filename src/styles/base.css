@@ -15,6 +15,7 @@
 }
 
 body {
+  position: relative;
   margin: 0;
   color: var(--text);
   font-family: 'Avenir Next', 'Segoe UI', 'PingFang SC', 'Noto Sans CJK SC', sans-serif;
@@ -25,11 +26,70 @@ body {
 }
 
 .app {
+  position: relative;
+  z-index: 1;
   max-width: 1720px;
   margin: 0 auto;
   padding: 22px;
   display: grid;
   gap: 14px;
+}
+
+.brandWatermark {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.brandWatermarkPlane {
+  position: absolute;
+  left: -24vw;
+  top: -18vh;
+  width: 150vw;
+  height: 150vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transform: rotate(-14deg);
+  transform-origin: center center;
+}
+
+.brandWatermarkRow {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  white-space: nowrap;
+  font-size: clamp(16px, 1.55vw, 24px);
+  line-height: 1;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: rgba(78, 108, 182, 0.06);
+  text-transform: none;
+}
+
+.brandWatermarkRow:nth-child(2n) {
+  color: rgba(92, 123, 194, 0.048);
+}
+
+.brandWatermarkRow:nth-child(3n) {
+  color: rgba(66, 98, 171, 0.072);
+}
+
+.brandWatermarkCode {
+  color: rgba(78, 108, 182, 0.028);
+  font-size: 0.88em;
+  letter-spacing: 0.06em;
+}
+
+.brandWatermarkRow:nth-child(2n) .brandWatermarkCode {
+  color: rgba(92, 123, 194, 0.024);
+}
+
+.brandWatermarkRow:nth-child(3n) .brandWatermarkCode {
+  color: rgba(66, 98, 171, 0.032);
 }
 
 .card {
