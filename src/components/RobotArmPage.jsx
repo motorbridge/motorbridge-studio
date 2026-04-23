@@ -1,5 +1,6 @@
 import React from 'react';
 import { useI18n } from '../i18n';
+import { DAMIAO_ARM_PARAM_DEFS } from '../lib/appConfig';
 import {
   REBOT_ARM_DAMIAO_DEFAULT_TEMPLATE,
   REBOT_ARM_JOINT_LIMITS,
@@ -38,6 +39,12 @@ const SAFE_DEMO_TARGETS = {
 
 function armPreferredMode() {
   return 'pos_vel';
+}
+
+function createParamValueDefaults() {
+  return Object.fromEntries(
+    DAMIAO_ARM_PARAM_DEFS.map((def) => [def.key, String(def.defaultValue ?? '')]),
+  );
 }
 
 export function RobotArmPage() {
@@ -125,6 +132,9 @@ export function RobotArmPage() {
   const zeroConfirmResolverRef = React.useRef(null);
   const rowsRef = React.useRef(robotArmJointRows);
   const initControlSyncDoneRef = React.useRef(false);
+  const damiaoParamDefs = React.useMemo(() => DAMIAO_ARM_PARAM_DEFS, []);
+  const writableParamDefs = React.useMemo(() => damiaoParamDefs.filter((x) => x.writable !== false), [damiaoParamDefs]);
+  const riskyParamDefs = React.useMemo(() => writableParamDefs.filter((x) => x.risky), [writableParamDefs]);
 
   React.useEffect(() => {
     rowsRef.current = robotArmJointRows;
@@ -339,14 +349,7 @@ export function RobotArmPage() {
             hit: row.hit,
             loaded: false,
             error: '',
-            values: {
-              ctrlMode: '2',
-              currentBw: '1000',
-              velKp: '0',
-              velKi: '0',
-              posKp: '0',
-              posKi: '0',
-            },
+            values: createParamValueDefaults(),
           }
         );
       }),
@@ -375,18 +378,13 @@ export function RobotArmPage() {
           ...x,
           loaded: true,
           error: '',
-          values: {
-            ctrlMode: String(v.ctrlMode ?? x.values.ctrlMode),
-            currentBw: String(v.currentBw ?? x.values.currentBw),
-            velKp: String(v.velKp ?? x.values.velKp),
-            velKi: String(v.velKi ?? x.values.velKi),
-            posKp: String(v.posKp ?? x.values.posKp),
-            posKi: String(v.posKi ?? x.values.posKi),
-          },
+          values: Object.fromEntries(
+            damiaoParamDefs.map((def) => [def.key, String(v[def.key] ?? x.values?.[def.key] ?? '')]),
+          ),
         };
       }),
     );
-  }, []);
+  }, [damiaoParamDefs]);
 
   const readParams = React.useCallback(async () => {
     setParamPanelOpen(true);
@@ -409,19 +407,37 @@ export function RobotArmPage() {
     setParamBusy(true);
     setParamInfo('');
     try {
+      const blockedRows = paramRows.filter((x) => String(x?.hit?.vendor) === 'damiao' && (!x.loaded || x.error));
+      if (blockedRows.length > 0) {
+        throw new Error(`read parameters first for joints: ${blockedRows.map((x) => `J${x.joint}`).join(', ')}`);
+      }
+
       const rows = paramRows.map((x) => ({
         key: x.key,
         joint: x.joint,
         hit: x.hit,
-        values: {
-          ctrlMode: Math.max(1, Math.min(4, Math.round(parseNum(x.values.ctrlMode, 2)))),
-          currentBw: parseNum(x.values.currentBw, 1000),
-          velKp: parseNum(x.values.velKp, 0),
-          velKi: parseNum(x.values.velKi, 0),
-          posKp: parseNum(x.values.posKp, 0),
-          posKi: parseNum(x.values.posKi, 0),
-        },
+        values: Object.fromEntries(
+          writableParamDefs.map((def) => {
+            const fallback = def.defaultValue === '' ? 0 : Number(def.defaultValue);
+            let parsed = parseNum(x.values?.[def.key], fallback);
+            if (def.key === 'ctrlMode') parsed = Math.max(1, Math.min(4, Math.round(parsed)));
+            if (def.dataType === 'u32') parsed = Math.max(0, Math.round(parsed));
+            return [def.key, parsed];
+          }),
+        ),
       }));
+      const riskyKeys = riskyParamDefs.map((def) => def.key);
+      const changedRisky = rows.some((row) =>
+        riskyKeys.some((key) => String(row.values?.[key] ?? '') !== String(paramRows.find((x) => x.key === row.key)?.values?.[key] ?? '')),
+      );
+      if (changedRisky) {
+        const confirmed = await askZeroConfirm({
+          title: 'Confirm risky parameter write',
+          message: `About to write ESC_ID / MST_ID / TIMEOUT / can_br for all loaded joints.\n\nOnly continue if IDs and bus settings are confirmed.`,
+          danger: true,
+        });
+        if (!confirmed) return;
+      }
       const writeResult = await writeRobotArmControlParams(rows, { onProgress: setParamProgress });
       const readBack = await readRobotArmControlParams({ onProgress: setParamProgress });
       applyReadResultToRows(readBack);
@@ -434,13 +450,13 @@ export function RobotArmPage() {
         if (!target || !item?.ok) return;
         const actual = item.values || {};
         checked += 1;
-        const same =
-          Math.round(Number(actual.ctrlMode)) === Math.round(Number(target.ctrlMode)) &&
-          closeEnough(Number(actual.currentBw), Number(target.currentBw), 1e-3) &&
-          closeEnough(Number(actual.velKp), Number(target.velKp), 1e-6) &&
-          closeEnough(Number(actual.velKi), Number(target.velKi), 1e-6) &&
-          closeEnough(Number(actual.posKp), Number(target.posKp), 1e-6) &&
-          closeEnough(Number(actual.posKi), Number(target.posKi), 1e-6);
+        const same = writableParamDefs.every((def) => {
+          const lhs = Number(actual[def.key]);
+          const rhs = Number(target[def.key]);
+          return def.dataType === 'u32'
+            ? Math.round(lhs) === Math.round(rhs)
+            : closeEnough(lhs, rhs, 1e-6);
+        });
         if (!same) mismatch += 1;
       });
 
@@ -459,7 +475,17 @@ export function RobotArmPage() {
     } finally {
       setParamBusy(false);
     }
-  }, [applyReadResultToRows, closeEnough, paramRows, readRobotArmControlParams, t, writeRobotArmControlParams]);
+  }, [
+    applyReadResultToRows,
+    askZeroConfirm,
+    closeEnough,
+    paramRows,
+    readRobotArmControlParams,
+    riskyParamDefs,
+    t,
+    writableParamDefs,
+    writeRobotArmControlParams,
+  ]);
 
   const applyDefaultTemplate = React.useCallback(() => {
     setParamPanelOpen(true);
@@ -478,6 +504,11 @@ export function RobotArmPage() {
     );
     setParamInfo(t('arm_params_template_applied'));
   }, [t]);
+
+  const canWriteParams = React.useMemo(
+    () => paramRows.length > 0 && paramRows.every((row) => String(row?.hit?.vendor) !== 'damiao' || (row.loaded && !row.error)),
+    [paramRows],
+  );
 
   const onZeroAllSafe = React.useCallback(async () => {
     if (zeroCheckBusy) return;
@@ -854,6 +885,8 @@ export function RobotArmPage() {
         paramInfo={paramInfo}
         paramProgress={paramProgress}
         paramRows={paramRows}
+        paramDefs={damiaoParamDefs}
+        canWriteParams={canWriteParams}
         patchParam={patchParam}
         readParams={readParams}
         writeParams={writeParams}
