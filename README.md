@@ -6,6 +6,11 @@ WebSocket-based motor control studio UI (frontend only).
 - Backend: `ws_gateway`
 - Browser calls WS operations: `set_target` / `scan` / `set_id` / `verify` / `enable` / `disable` / `mit` / `pos_vel` / `vel` / `force_pos` / `stop`
 
+## Companion Repo
+
+- `motorbridge`: https://github.com/tianrking/motorbridge
+  Core runtime, `motor_cli`, bindings, `ws_gateway`, and `tools/reliability`.
+
 ## 1) Install Prerequisites
 
 ```bash

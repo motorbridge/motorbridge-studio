@@ -6,6 +6,11 @@
 - 后端：`ws_gateway`
 - 浏览器调用 WS 指令：`set_target` / `scan` / `set_id` / `verify` / `enable` / `disable` / `mit` / `pos_vel` / `vel` / `force_pos` / `stop`
 
+## 配套仓库
+
+- `motorbridge`：https://github.com/tianrking/motorbridge
+  提供核心运行时、`motor_cli`、bindings、`ws_gateway` 与 `tools/reliability`。
+
 ## 1）安装依赖
 
 ```bash
