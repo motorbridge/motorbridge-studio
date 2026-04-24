@@ -318,15 +318,16 @@ export function RobotArmPage() {
   });
   const [firstUseOpen, setFirstUseOpen] = React.useState(false);
   const rowsRef = React.useRef(robotArmJointRows);
-  const initControlSyncDoneRef = React.useRef(false);
+  const controlSyncSignatureRef = React.useRef('');
 
   React.useEffect(() => {
     rowsRef.current = robotArmJointRows;
   }, [robotArmJointRows]);
 
   React.useEffect(() => {
-    if (initControlSyncDoneRef.current) return;
     if (!robotArmJointRows.length) return;
+    const syncSignature = `${robotArmModel}:${robotArmJointRows.map((row) => row.key).join('|')}`;
+    if (controlSyncSignatureRef.current === syncSignature) return;
     robotArmJointRows.forEach((row) => {
       const lim = REBOT_ARM_JOINT_LIMITS[Number(row.joint)] || { min: -3.14, max: 3.14 };
       const rawPos = Number(row?.hit?.pos);
@@ -340,8 +341,8 @@ export function RobotArmPage() {
         target: synced,
       });
     });
-    initControlSyncDoneRef.current = true;
-  }, [robotArmJointRows, patchControl]);
+    controlSyncSignatureRef.current = syncSignature;
+  }, [robotArmJointRows, patchControl, robotArmModel]);
 
   React.useEffect(() => {
     if (robotArmJointRows.length === 0) return;
