@@ -17,6 +17,9 @@ describe('vendors helpers', () => {
     expect(buildScanPayloadExtras('robstride', { feedbackId: '0xFD' })).toEqual({
       feedback_ids: [0xfd],
     });
+    expect(buildScanPayloadExtras('robstride', { feedbackId: '0xFD,0xFF,0xFE' })).toEqual({
+      feedback_ids: [0xfd, 0xff, 0xfe],
+    });
   });
 
   it('computes vendor scan defaults', () => {

@@ -154,12 +154,18 @@ export function normalizeHits(vendor, data, model) {
       continue;
     }
     if (vendor === 'robstride') {
+      // WS scan probe is the authoritative motor ID on bus.
+      // device_id can be vendor-specific payload value and may not match probe ID.
+      const probeId = Number(h.probe ?? 0);
+      const deviceId = Number(h.device_id ?? Number.NaN);
       out.push({
         vendor,
         model,
-        probe: Number(h.probe ?? h.device_id ?? 0),
-        esc_id: Number(h.device_id ?? h.probe ?? 0),
-        mst_id: Number(h.feedback_id ?? 0xFF),
+        probe: Number.isFinite(probeId) && probeId > 0 ? probeId : deviceId,
+        esc_id: Number.isFinite(probeId) && probeId > 0 ? probeId : deviceId,
+        device_id: deviceId,
+        responder_id: Number(h.responder_id ?? Number.NaN),
+        mst_id: Number(h.feedback_id ?? 0xFD),
         updated_at_ms: now,
       });
       continue;

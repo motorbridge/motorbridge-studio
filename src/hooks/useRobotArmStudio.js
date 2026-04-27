@@ -110,7 +110,7 @@ export function useRobotArmStudio({
   const scanRobotArmJoint = async (jointNumber) => {
     const row = robotArmJointRows.find((x) => x.joint === jointNumber);
     if (!row) return false;
-    return probeMotor(row.hit);
+    return probeMotor(row.hit, { fastProbe: true });
   };
 
   const scanRobotArmAll = async () => {
@@ -152,7 +152,7 @@ export function useRobotArmStudio({
           });
         }, 120);
 
-        const ok = await probeMotor(hit);
+        const ok = await probeMotor(hit, { fastProbe: true });
         if (ok) onlineCount += 1;
         clearInterval(progressTimer);
 
@@ -163,7 +163,7 @@ export function useRobotArmStudio({
           label: `robot-arm scanning joint ${j.joint} (${step}/7)`,
           percent: Math.floor((step / ROBOT_ARM_JOINTS.length) * 100),
         });
-        await sleep(40);
+        await sleep(10);
       }
 
       pushLog(`robot-arm scan done online=${onlineCount}/7`, 'ok');

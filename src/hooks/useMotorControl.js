@@ -99,8 +99,8 @@ export function useMotorControl({
   const refreshMotorState = (h) =>
     refreshMotorStateOp({ h, vendors, setTargetFor, sendCmd, setHits, pushLog });
 
-  const probeMotor = (h) =>
-    probeMotorOp({ h, vendors, setTargetFor, sendCmd, setHits, closeBusQuietly, pushLog });
+  const probeMotor = (h, options = {}) =>
+    probeMotorOp({ h, vendors, setTargetFor, sendCmd, setHits, closeBusQuietly, pushLog, options });
 
   const resetControlFor = (h) => {
     const key = motorKey(h);

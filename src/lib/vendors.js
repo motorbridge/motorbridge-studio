@@ -2,7 +2,7 @@ import { parseNum } from './utils';
 
 export const VENDOR_SCAN_FIELD_MAP = {
   damiao: { key: 'feedbackBase', fallback: 0x10, type: 'feedback_base' },
-  robstride: { key: 'feedbackId', fallback: 0xff, type: 'feedback_id' },
+  robstride: { key: 'feedbackId', fallback: 0xfd, type: 'feedback_id' },
 };
 
 export function getVendorModels(vendor, model, damiaoModelCandidates) {
@@ -12,7 +12,7 @@ export function getVendorModels(vendor, model, damiaoModelCandidates) {
 
 export function getVendorScanDefaults(vendor, cfg, startId) {
   if (vendor === 'robstride') {
-    return parseNum(cfg.feedbackId, 0xff);
+    return parseNum(cfg.feedbackId, 0xfd);
   }
   if (vendor === 'damiao') {
     return parseNum(cfg.feedbackBase, 0x10) + (startId & 0x0f);
@@ -25,7 +25,15 @@ export function buildScanPayloadExtras(vendor, cfg) {
     return { feedback_base: parseNum(cfg.feedbackBase, 0x10) };
   }
   if (vendor === 'robstride') {
-    return { feedback_ids: [parseNum(cfg.feedbackId, 0xff)] };
+    const raw = String(cfg.feedbackId ?? '').trim();
+    const parts = raw.includes(',') ? raw.split(',').map((x) => x.trim()).filter(Boolean) : [raw];
+    const feedbackIds = [];
+    const pushUnique = (id) => {
+      if (Number.isFinite(id) && id >= 0 && !feedbackIds.includes(id)) feedbackIds.push(id);
+    };
+    for (const p of parts) pushUnique(parseNum(p, Number.NaN));
+    if (feedbackIds.length === 0) pushUnique(parseNum(cfg.feedbackId, 0xfd));
+    return { feedback_ids: feedbackIds };
   }
   return {};
 }

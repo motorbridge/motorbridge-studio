@@ -55,7 +55,11 @@ function encodeWatermarkPayload(payload) {
   ].join('|');
 
   try {
-    return btoa(raw).replace(/=+$/g, '');
+    const encoder = typeof globalThis !== 'undefined' ? globalThis.btoa : null;
+    if (typeof encoder === 'function') {
+      return encoder(raw).replace(/=+$/g, '');
+    }
+    return raw;
   } catch {
     return raw;
   }

@@ -49,7 +49,39 @@ export async function runScanOp({
   }
 
   setScanBusy(true);
-    setScanProgress({ active: true, done: 0, total: 0, label: tr('scanning', 'scanning...'), percent: 0 });
+  setScanProgress({ active: true, done: 0, total: 0, label: tr('scanning', 'scanning...'), percent: 0 });
+
+  const applyHits = (normalized, activeMotorKeySnapshot) => {
+    if (!normalized.length) return;
+    setHits((prev) => {
+      const prevKeys = new Set(prev.map((x) => motorKey(x)));
+      const merged = mergeHitsByVendor(prev, dedupHitsByVendor(normalized));
+      const incomingNew = merged.map((x) => motorKey(x)).filter((k) => !prevKeys.has(k));
+
+      setControls((prevControls) => {
+        const next = { ...prevControls };
+        for (const h of merged) {
+          const k = motorKey(h);
+          if (!next[k]) next[k] = defaultControlsForHit(h);
+        }
+        return next;
+      });
+
+      if (!activeMotorKeySnapshot && merged.length > 0) {
+        setActiveMotorKey(motorKey(merged[0]));
+      }
+
+      if (incomingNew.length > 0) {
+        const first = incomingNew[0];
+        setNewCardKeys(new Set(incomingNew));
+        setTimeout(() => {
+          const el = cardRefs.current[first];
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 30);
+      }
+      return merged;
+    });
+  };
 
   try {
     const allFound = [];
@@ -89,7 +121,7 @@ export async function runScanOp({
           const estimatedInPhase = isFinal
             ? phaseCount
             : Math.min(phaseCount - 1, Math.max(0, Math.floor((elapsed / estimateMs) * phaseCount)));
-          const done = completedSteps + estimatedInPhase;
+          const done = Math.min(totalSteps, completedSteps + estimatedInPhase);
           const percent = totalSteps > 0 ? Math.min(100, Math.floor((done / totalSteps) * 100)) : 0;
           setScanProgress({
             active: true,
@@ -107,64 +139,87 @@ export async function runScanOp({
 
         await setTargetFor(vendor, model, startId, defaultFid);
 
-        const scanPayload = {
+        const basePayload = {
           vendor,
-          start_id: startId,
-          end_id: endId,
           timeout_ms: timeout,
+          ...buildScanPayloadExtras(vendor, cfg),
         };
-        Object.assign(scanPayload, buildScanPayloadExtras(vendor, cfg));
+        let normalized = [];
+        if (vendor === 'robstride') {
+          // Incremental scan for RobStride: update cards as soon as each ID returns.
+          let phaseDone = 0;
+          const probeTimeoutMs = Math.max(60, Math.min(timeout, 120));
+          const perProbeWaitMs = 1000;
+          for (let probe = startId; probe <= endId; probe += 1) {
+            const scanPayload = {
+              ...basePayload,
+              start_id: probe,
+              end_id: probe,
+              timeout_ms: probeTimeoutMs,
+            };
+            let ret;
+            try {
+              ret = await sendCmd('scan', scanPayload, perProbeWaitMs);
+            } catch {
+              phaseDone += 1;
+              const done = Math.min(totalSteps, completedSteps + phaseDone);
+              const percent = totalSteps > 0 ? Math.min(100, Math.floor((done / totalSteps) * 100)) : 0;
+              setScanProgress({
+                active: true,
+                done,
+                total: totalSteps,
+                label: `scanning ${vendor}(${model}) ${toHex(startId)}..${toHex(endId)}`,
+                percent,
+              });
+              pushLog(`scan ${vendor} id=${toHex(probe)} timeout(1s)`, 'err');
+              continue;
+            }
+            phaseDone += 1;
+            const done = Math.min(totalSteps, completedSteps + phaseDone);
+            const percent = totalSteps > 0 ? Math.min(100, Math.floor((done / totalSteps) * 100)) : 0;
+            setScanProgress({
+              active: true,
+              done,
+              total: totalSteps,
+              label: `scanning ${vendor}(${model}) ${toHex(startId)}..${toHex(endId)}`,
+              percent,
+            });
+            if (!ret.ok) {
+              pushLog(`scan ${vendor} id=${toHex(probe)} failed: ${ret.error || 'unknown'}`, 'err');
+              continue;
+            }
+            const one = normalizeHits(vendor, ret.data, model);
+            if (one.length > 0) {
+              normalized.push(...one);
+              applyHits(one, activeMotorKey);
+              if (typeof onFound === 'function') onFound({ vendor, model, count: one.length });
+            }
+          }
+          completedSteps += phaseCount;
+          updateProgress(true);
+        } else {
+          const scanPayload = { ...basePayload, start_id: startId, end_id: endId };
+          const rangeCount = Math.max(1, endId - startId + 1);
+          const scanWaitMs = Math.min(180000, Math.max(30000, rangeCount * timeout * 4));
+          const ret = await sendCmd('scan', scanPayload, scanWaitMs);
+          completedSteps += phaseCount;
+          updateProgress(true);
 
-        const rangeCount = Math.max(1, endId - startId + 1);
-        const scanWaitMs = Math.min(180000, Math.max(30000, rangeCount * timeout * 4));
-        const ret = await sendCmd('scan', scanPayload, scanWaitMs);
+          if (!ret.ok) {
+            pushLog(`scan ${vendor} model=${model} failed: ${ret.error || 'unknown'}`, 'err');
+            continue;
+          }
+          normalized = normalizeHits(vendor, ret.data, model);
+          if (normalized.length > 0) {
+            applyHits(normalized, activeMotorKey);
+            if (typeof onFound === 'function') onFound({ vendor, model, count: normalized.length });
+          }
+        }
 
         if (progressTimer) clearInterval(progressTimer);
-        completedSteps += phaseCount;
-        updateProgress(true);
 
-        if (!ret.ok) {
-          pushLog(`scan ${vendor} model=${model} failed: ${ret.error || 'unknown'}`, 'err');
-          continue;
-        }
-
-        const normalized = normalizeHits(vendor, ret.data, model);
         vendorHits.push(...normalized);
         pushLog(`scan ${vendor} model=${model} ok: ${normalized.length} hit(s)`, 'ok');
-        if (normalized.length > 0 && typeof onFound === 'function') {
-          onFound({ vendor, model, count: normalized.length });
-        }
-
-        if (normalized.length > 0) {
-          setHits((prev) => {
-            const prevKeys = new Set(prev.map((x) => motorKey(x)));
-            const merged = mergeHitsByVendor(prev, dedupHitsByVendor(normalized));
-            const incomingNew = merged.map((x) => motorKey(x)).filter((k) => !prevKeys.has(k));
-
-            setControls((prevControls) => {
-              const next = { ...prevControls };
-              for (const h of merged) {
-                const k = motorKey(h);
-                if (!next[k]) next[k] = defaultControlsForHit(h);
-              }
-              return next;
-            });
-
-            if (!activeMotorKey && merged.length > 0) {
-              setActiveMotorKey(motorKey(merged[0]));
-            }
-
-            if (incomingNew.length > 0) {
-              const first = incomingNew[0];
-              setNewCardKeys(new Set(incomingNew));
-              setTimeout(() => {
-                const el = cardRefs.current[first];
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-              }, 30);
-            }
-            return merged;
-          });
-        }
 
         if (vendor === 'damiao') {
           for (const h of normalized) {

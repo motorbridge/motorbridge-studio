@@ -397,13 +397,20 @@ export async function probeMotorOp({
   setHits,
   closeBusQuietly,
   pushLog,
+  options = {},
 }) {
   try {
     const model = modelForHit(h, vendors);
     await setTargetFor(h.vendor, model, h.esc_id, h.mst_id);
 
     const payload = buildProbePayload(h.vendor, h.esc_id, h.mst_id);
-    const ret = await sendCmd('scan', payload, CMD_TIMEOUTS.verifyMs);
+    const fastProbe = Boolean(options?.fastProbe);
+    const isRobstride = String(h?.vendor) === 'robstride';
+    const requestTimeoutMs = fastProbe && isRobstride ? 1000 : CMD_TIMEOUTS.verifyMs;
+    if (fastProbe && isRobstride) {
+      payload.timeout_ms = Math.max(60, Math.min(Number(payload.timeout_ms) || 120, 120));
+    }
+    const ret = await sendCmd('scan', payload, requestTimeoutMs);
     if (!ret.ok) throw new Error(ret.error || 'probe scan failed');
 
     const list = normalizeHits(h.vendor, ret.data, model);
@@ -427,7 +434,9 @@ export async function probeMotorOp({
       `probe ${h.vendor} ${toHex(h.esc_id)} ${online ? 'online' : 'offline'}`,
       online ? 'ok' : 'err',
     );
-    await closeBusQuietly();
+    if (options?.closeBusAfter !== false) {
+      await closeBusQuietly();
+    }
     return online;
   } catch (e) {
     setHits((prev) =>
@@ -440,6 +449,9 @@ export async function probeMotorOp({
       ]),
     );
     pushLog(`probe failed: ${e.message || e}`, 'err');
+    if (options?.closeBusAfter !== false) {
+      await closeBusQuietly();
+    }
     return false;
   }
 }
