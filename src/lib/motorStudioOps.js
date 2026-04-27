@@ -279,16 +279,30 @@ export async function zeroMotorOp({
   pushLog,
 }) {
   const c = controls[motorKey(h)] || defaultControlsForHit(h);
-  if (!c.enabled) {
+  const isRobstride = String(h?.vendor) === 'robstride';
+  if (!isRobstride && !c.enabled) {
     pushLog(`zero blocked ${h.vendor} ${toHex(h.esc_id)}: enable first`, 'err');
     return false;
   }
 
   try {
     await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
+    let nextHit = { ...h, updated_at_ms: Date.now() };
+
+    if (isRobstride) {
+      // RobStride zeroing is more reliable in disabled state.
+      const disableRet = await sendCmd('disable', { vendor: h.vendor }, CMD_TIMEOUTS.controlMs);
+      if (!disableRet.ok) {
+        pushLog(`zero ${h.vendor} ${toHex(h.esc_id)} pre-disable failed: ${disableRet.error || 'unknown'}`, 'err');
+      }
+      await sleepMs(80);
+    }
 
     const zeroRet = await sendCmd('set_zero_position', { vendor: h.vendor }, CMD_TIMEOUTS.controlMs);
     if (!zeroRet.ok) throw new Error(zeroRet.error || 'set_zero_position failed');
+    if (isRobstride) {
+      await sleepMs(120);
+    }
 
     const storeRet = await sendCmd('store_parameters', { vendor: h.vendor }, CMD_TIMEOUTS.controlMs);
     if (!storeRet.ok) {
@@ -299,8 +313,26 @@ export async function zeroMotorOp({
     } else {
       pushLog(`zero+store ${h.vendor} ${toHex(h.esc_id)} ok`, 'ok');
     }
+    if (isRobstride) {
+      await sleepMs(120);
+      const verifyState = await sendCmd('state_once', {}, CMD_TIMEOUTS.stateMs);
+      if (!verifyState.ok) {
+        pushLog(
+          `zero ${h.vendor} ${toHex(h.esc_id)} done, but post-state failed: ${verifyState.error || 'unknown'}`,
+          'err',
+        );
+      } else {
+        const posNow = Number(verifyState?.data?.pos);
+        nextHit = mapResponseToHit(h, verifyState.data);
+        if (Number.isFinite(posNow) && Math.abs(posNow) > 0.05) {
+          pushLog(`zero ${h.vendor} ${toHex(h.esc_id)} warning: post-pos=${posNow.toFixed(3)}rad`, 'info');
+        } else if (Number.isFinite(posNow)) {
+          pushLog(`zero ${h.vendor} ${toHex(h.esc_id)} verified pos=${posNow.toFixed(3)}rad`, 'ok');
+        }
+      }
+    }
 
-    setHits((prev) => mergeHitsByVendor(prev, [{ ...h, updated_at_ms: Date.now() }]));
+    setHits((prev) => mergeHitsByVendor(prev, [nextHit]));
     await closeBusQuietly();
     return true;
   } catch (e) {

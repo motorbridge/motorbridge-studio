@@ -1,5 +1,11 @@
 import React from 'react';
 import { DAMIAO_RW_REGISTER_DEFS } from '../lib/appConfig';
+import {
+  canRobstrideWrite,
+  ROBSTRIDE_ACCESS_LABELS,
+  ROBSTRIDE_PARAM_CATALOG,
+  toRobstrideCliType,
+} from '../lib/robstrideParamCatalog';
 import { SET_ID_VENDORS, VENDOR_LABELS } from '../lib/constants';
 import { controlInputValue, formatLocal, getResponseValue, motorKey, parseNum, toHex } from '../lib/utils';
 import { useI18n } from '../i18n';
@@ -65,11 +71,39 @@ export function MotorDetailPanel({
   const [rsParamType, setRsParamType] = React.useState('f32');
   const [rsParamValue, setRsParamValue] = React.useState('0');
   const [rsReadValue, setRsReadValue] = React.useState('');
+  const [rsSearch, setRsSearch] = React.useState('');
+  const [rsAccessFilter, setRsAccessFilter] = React.useState('all');
   const [showLessCommonDamiaoRw, setShowLessCommonDamiaoRw] = React.useState(false);
   const [advancedRiskAccepted, setAdvancedRiskAccepted] = React.useState(false);
   const [advancedRiskDialogOpen, setAdvancedRiskDialogOpen] = React.useState(false);
   const [opBusy, setOpBusy] = React.useState(false);
 
+  const vendor = String(activeMotor?.vendor || '').toLowerCase();
+  const rsParamIdNum = parseNum(rsParamId, Number.NaN);
+  const selectedRobstrideParam = React.useMemo(
+    () => ROBSTRIDE_PARAM_CATALOG.find((x) => Number(x.id) === Number(rsParamIdNum)) || null,
+    [rsParamIdNum],
+  );
+  React.useEffect(() => {
+    if (!selectedRobstrideParam) return;
+    const cliType = toRobstrideCliType(selectedRobstrideParam.dataType);
+    if (cliType) setRsParamType(cliType);
+  }, [selectedRobstrideParam]);
+  const filteredRobstrideParams = React.useMemo(() => {
+    const q = rsSearch.trim().toLowerCase();
+    return ROBSTRIDE_PARAM_CATALOG.filter((x) => {
+      if (rsAccessFilter !== 'all' && x.access !== rsAccessFilter) return false;
+      if (!q) return true;
+      const idHex = `0x${Number(x.id).toString(16).toLowerCase()}`;
+      return (
+        idHex.includes(q) ||
+        String(x.name || '').toLowerCase().includes(q) ||
+        String(x.dataType || '').toLowerCase().includes(q)
+      );
+    });
+  }, [rsAccessFilter, rsSearch]);
+  const selectedParamWritable = selectedRobstrideParam ? canRobstrideWrite(selectedRobstrideParam.access) : true;
+  const selectedParamTypeSupported = selectedRobstrideParam ? Boolean(toRobstrideCliType(selectedRobstrideParam.dataType)) : true;
   if (!activeMotor || !activeControl) {
     return <div className="tip">{t('select_motor_tip')}</div>;
   }
@@ -78,7 +112,6 @@ export function MotorDetailPanel({
   const patch = (field) => (e) => patchControl(key, { [field]: e.target.value });
   const patchNumber = (field) => (e) =>
     patchControl(key, { [field]: parseNum(e.target.value, activeControl?.[field] ?? 0) });
-  const vendor = String(activeMotor.vendor || '').toLowerCase();
   const commonDamiaoRw = DAMIAO_RW_REGISTER_DEFS.filter((x) => x.common);
   const lessCommonDamiaoRw = DAMIAO_RW_REGISTER_DEFS.filter((x) => !x.common);
 
@@ -357,6 +390,51 @@ export function MotorDetailPanel({
             <>
               <div className="sectionTitle">
                 <h2>{t('robstride_param')}</h2>
+                <span className="tip">Catalog: {ROBSTRIDE_PARAM_CATALOG.length} params</span>
+              </div>
+              <div className="grid3 denseGrid">
+                <Field label="Search" value={rsSearch} onChange={(e) => setRsSearch(e.target.value)} />
+                <div className="field">
+                  <label>Access</label>
+                  <select value={rsAccessFilter} onChange={(e) => setRsAccessFilter(e.target.value)}>
+                    <option value="all">All</option>
+                    <option value="rw">Read/Write</option>
+                    <option value="config">Config</option>
+                    <option value="setting">Setting</option>
+                    <option value="ro">Read-Only</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Selected</label>
+                  <input
+                    readOnly
+                    value={
+                      selectedRobstrideParam
+                        ? `${toHex(selectedRobstrideParam.id)} ${selectedRobstrideParam.name} (${selectedRobstrideParam.dataType}, ${ROBSTRIDE_ACCESS_LABELS[selectedRobstrideParam.access] || selectedRobstrideParam.access})`
+                        : '-'
+                    }
+                  />
+                </div>
+              </div>
+              <div className="box logs" style={{ maxHeight: 180, overflow: 'auto' }}>
+                {filteredRobstrideParams.slice(0, 200).map((p) => (
+                  <div key={`rs-param-${p.id}`} className="row toolbar compactToolbar">
+                    <button
+                      className="ghostBtn"
+                      onClick={() => {
+                        setRsParamId(toHex(p.id));
+                        const cliType = toRobstrideCliType(p.dataType);
+                        if (cliType) setRsParamType(cliType);
+                      }}
+                    >
+                      Use
+                    </button>
+                    <span style={{ minWidth: 88 }}>{toHex(p.id)}</span>
+                    <span style={{ minWidth: 220 }}>{p.name}</span>
+                    <span style={{ minWidth: 80 }}>{p.dataType}</span>
+                    <span>{ROBSTRIDE_ACCESS_LABELS[p.access] || p.access}</span>
+                  </div>
+                ))}
               </div>
               <div className="grid3 denseGrid">
                 <Field label={t('param_id')} value={rsParamId} onChange={(e) => setRsParamId(e.target.value)} />
@@ -374,7 +452,7 @@ export function MotorDetailPanel({
               </div>
               <div className="row toolbar compactToolbar">
                 <button
-                  disabled={!connected || opBusy}
+                  disabled={!connected || opBusy || !selectedParamTypeSupported}
                   onClick={() =>
                     runOp(async () => {
                       const ret = await runMotorOp(activeMotor, 'robstride_read_param', {
@@ -389,7 +467,7 @@ export function MotorDetailPanel({
                   {t('read_param')}
                 </button>
                 <button
-                  disabled={!connected || opBusy}
+                  disabled={!connected || opBusy || !selectedParamWritable || !selectedParamTypeSupported}
                   onClick={() =>
                     runOp(() =>
                       runMotorOp(activeMotor, 'robstride_write_param', {
@@ -405,6 +483,12 @@ export function MotorDetailPanel({
                 </button>
                 <span className="tip">{t('read_value')}: {rsReadValue || '-'}</span>
               </div>
+              {!selectedParamTypeSupported && (
+                <div className="tip">Current catalog type is not directly supported by unified read/write API. Please use vendor-specific tooling.</div>
+              )}
+              {!selectedParamWritable && (
+                <div className="tip">This parameter is marked Read-Only in catalog; write is disabled.</div>
+              )}
             </>
           )}
 
