@@ -75,6 +75,7 @@ export function ArmUrdfViewer({
   trailStyle = 'mono',
   trailVisible = true,
   onReplayStateChange,
+  waypointMarkers = [],
 }) {
   const hostRef = React.useRef(null);
   const robotRef = React.useRef(null);
@@ -99,6 +100,7 @@ export function ArmUrdfViewer({
   const replaySpeedRef = React.useRef(Math.max(0.05, Number(replaySpeed) || 1));
   const onReplayStateChangeRef = React.useRef(onReplayStateChange);
   const tmpWorldRef = React.useRef(new THREE.Vector3());
+  const waypointGroupRef = React.useRef(null);
   const [status, setStatus] = React.useState('loading');
 
   React.useEffect(() => {
@@ -399,6 +401,37 @@ export function ArmUrdfViewer({
   }, [jointTargets]);
 
   React.useEffect(() => {
+    const group = waypointGroupRef.current;
+    if (!group) return;
+    while (group.children.length > 0) {
+      const c = group.children.pop();
+      c?.geometry?.dispose?.();
+      if (Array.isArray(c?.material)) c.material.forEach((m) => m.dispose?.());
+      else c?.material?.dispose?.();
+    }
+    (Array.isArray(waypointMarkers) ? waypointMarkers : []).forEach((wp) => {
+      const x = Number(wp?.x);
+      const y = Number(wp?.y);
+      const z = Number(wp?.z);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
+      const color = Number(wp?.color || 0x3b82f6);
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.014, 14, 14),
+        new THREE.MeshStandardMaterial({
+          color,
+          roughness: 0.22,
+          metalness: 0.05,
+          emissive: color,
+          emissiveIntensity: 0.12,
+        }),
+      );
+      marker.position.set(x, y, z);
+      marker.userData = { waypointId: wp?.id || '' };
+      group.add(marker);
+    });
+  }, [waypointMarkers]);
+
+  React.useEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
 
@@ -434,6 +467,10 @@ export function ArmUrdfViewer({
     const grid = new THREE.GridHelper(2.2, 24, 0x94ace1, 0xcad8f8);
     grid.position.y = -0.02;
     scene.add(grid);
+    const waypointGroup = new THREE.Group();
+    waypointGroup.name = 'waypoint-markers';
+    scene.add(waypointGroup);
+    waypointGroupRef.current = waypointGroup;
 
     const trailGeometry = new LineGeometry();
     trailGeometry.setPositions(SAFE_ZERO_SEGMENT);
@@ -673,6 +710,7 @@ export function ArmUrdfViewer({
       trailRainbowRef.current = null;
       trailDotsRef.current = null;
       trailHeadRef.current = null;
+      waypointGroupRef.current = null;
       endEffectorRef.current = null;
       trailPointsRef.current = [];
       trailFramesRef.current = [];

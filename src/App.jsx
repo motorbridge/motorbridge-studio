@@ -7,6 +7,7 @@ import { ScanWorkspace } from './components/ScanWorkspace';
 import { MotorSection } from './components/MotorSection';
 import { StateLogsPanel } from './components/StateLogsPanel';
 import { RobotArmPage } from './components/RobotArmPage';
+import { SimuPage } from './third_page';
 import { HelpCenterModal } from './components/HelpCenterModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { useMotorStudio } from './hooks/useMotorStudio';
@@ -18,6 +19,22 @@ export default function App() {
   const studio = useMotorStudio();
   const [page, setPage] = React.useState('general');
   const [helpOpen, setHelpOpen] = React.useState(false);
+
+  const pathParts = String(window.location.pathname || '/')
+    .split('/')
+    .filter(Boolean);
+  const leading = pathParts[0];
+  const isLocale = leading === 'en' || leading === 'zh' || leading === 'es';
+  const route = isLocale ? pathParts[1] || '' : pathParts[0] || '';
+  const isSimuRoute = route === 'simu';
+
+  if (isSimuRoute) {
+    return (
+      <MotorStudioProvider value={studio}>
+        <SimuPage />
+      </MotorStudioProvider>
+    );
+  }
 
   return (
     <MotorStudioProvider value={studio}>

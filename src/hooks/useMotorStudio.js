@@ -132,6 +132,7 @@ export function useMotorStudio() {
       targetSerialPort: connectionState.targetSerialPort,
       connectWs: connectionState.connectWs,
       disconnectWs: connectionState.disconnectWs,
+      sendCmd: connectionState.sendCmd,
       canAction,
     }),
     [connectionState, canAction],
