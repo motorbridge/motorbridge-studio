@@ -1,0 +1,564 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="reBot_B601_DM_with_gripper">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-7.84900200290563E-06 -1.15307883068214E-06 0.0298408979494326"
+        rpy="0 0 0" />
+      <mass
+        value="0.811794979292755" />
+      <inertia
+        ixx="0.00168302247602743"
+        ixy="1.88775531040997E-09"
+        ixz="-1.4880505554957E-08"
+        iyy="0.00100801741336577"
+        iyz="2.18234443445551E-07"
+        izz="0.00244749461290355" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="link1">
+    <inertial>
+      <origin
+        xyz="0.000113614552951625 -0.000616319527051332 0.0236476372671394"
+        rpy="0 0 0" />
+      <mass
+        value="0.0712704108566766" />
+      <inertia
+        ixx="8.16072677894914E-05"
+        ixy="5.36046410154163E-11"
+        ixz="8.18305609511266E-06"
+        iyy="4.70110503296665E-05"
+        iyz="1.61531670602039E-10"
+        izz="7.28111764636926E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint1"
+    type="revolute">
+    <origin
+      xyz="-8.416E-05 0 0.08465"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="link1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.8"
+      upper="2.8"
+      effort="27"
+      velocity="50" />
+  </joint>
+  <link
+    name="link2">
+    <inertial>
+      <origin
+        xyz="-0.13225622308888 -0.0030617036386309 -0.0308306967030205"
+        rpy="0 0 0" />
+      <mass
+        value="0.707752121514755" />
+      <inertia
+        ixx="0.000249901808052776"
+        ixy="1.60716268493487E-06"
+        ixz="2.51351692749453E-09"
+        iyy="0.00186309506788706"
+        iyz="4.36542165693326E-07"
+        izz="0.00185984644965715" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint2"
+    type="revolute">
+    <origin
+      xyz="0.020084 0.031625 0.05555"
+      rpy="-1.5708 0 0" />
+    <parent
+      link="link1" />
+    <child
+      link="link2" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14"
+      upper="0"
+      effort="27"
+      velocity="50" />
+  </joint>
+  <link
+    name="link3">
+    <inertial>
+      <origin
+        xyz="0.121040035791843 -0.053621107662795 -0.0310137854608077"
+        rpy="0 0 0" />
+      <mass
+        value="0.52419140541782" />
+      <inertia
+        ixx="0.000160110451196588"
+        ixy="-1.61604034790251E-05"
+        ixz="-3.33082723566278E-06"
+        iyy="0.00124900925034158"
+        iyz="2.96940950304494E-07"
+        izz="0.00125556700770441" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint3"
+    type="revolute">
+    <origin
+      xyz="-0.264 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="link2" />
+    <child
+      link="link3" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.14"
+      upper="0"
+      effort="27"
+      velocity="50" />
+  </joint>
+  <link
+    name="link4">
+    <inertial>
+      <origin
+        xyz="0.0608200956293136 -0.0511711906613122 -0.030299458623927"
+        rpy="0 0 0" />
+      <mass
+        value="0.192453138802909" />
+      <inertia
+        ixx="7.18437323853685E-05"
+        ixy="-1.12301944983523E-05"
+        ixz="-5.19641464683405E-08"
+        iyy="0.000112925371032313"
+        iyz="2.21782686196735E-07"
+        izz="0.000101144200087277" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint4"
+    type="revolute">
+    <origin
+      xyz="0.2426 -0.054 -0.001625"
+      rpy="0 0 0" />
+    <parent
+      link="link3" />
+    <child
+      link="link4" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.87"
+      upper="1.57"
+      effort="7"
+      velocity="200" />
+  </joint>
+  <link
+    name="link5">
+    <inertial>
+      <origin
+        xyz="-0.00502802058982517 1.73866206692415E-06 0.0386233236326755"
+        rpy="0 0 0" />
+      <mass
+        value="0.150639860360662" />
+      <inertia
+        ixx="6.79292015300619E-05"
+        ixy="-7.20234792778753E-10"
+        ixz="-2.82554290621394E-06"
+        iyy="5.17282440362915E-05"
+        iyz="9.87947895620082E-09"
+        izz="5.43670142287029E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint5"
+    type="revolute">
+    <origin
+      xyz="0.078308 -0.0375 -0.03"
+      rpy="-1.5708 0 0" />
+    <parent
+      link="link4" />
+    <child
+      link="link5" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="7"
+      velocity="200" />
+  </joint>
+  <link
+    name="link6">
+    <inertial>
+      <origin
+        xyz="3.01162331092231E-05 1.71023217462945E-10 0.00461169307687444"
+        rpy="0 0 0" />
+      <mass
+        value="0.0155282499118665" />
+      <inertia
+        ixx="4.14212934452771E-06"
+        ixy="3.92198052759728E-14"
+        ixz="-6.26962848948777E-11"
+        iyy="4.14241302911019E-06"
+        iyz="-1.81788949206456E-15"
+        izz="8.05211980186798E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint6"
+    type="revolute">
+    <origin
+      xyz="0.023692 0 0.04"
+      rpy="0 1.5708 0" />
+    <parent
+      link="link5" />
+    <child
+      link="link6" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="7"
+      velocity="200" />
+  </joint>
+  <link
+    name="gripper_link">
+    <inertial>
+      <origin
+        xyz="-0.113763459108667 7.34878719783005E-05 1.07677070968759E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.183321147514111" />
+      <inertia
+        ixx="0.000232463206270929"
+        ixy="-2.77113800319615E-07"
+        ixz="-1.85425289490563E-10"
+        iyy="5.85934543851987E-05"
+        iyz="-1.15492630698967E-08"
+        izz="0.000205298129798417" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/gripper_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/gripper_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gripper_joint"
+    type="fixed">
+    <origin
+      xyz="0 0 0.15971"
+      rpy="3.1416 -1.5708 0" />
+    <parent
+      link="link6" />
+    <child
+      link="gripper_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="gripper_left">
+    <inertial>
+      <origin
+        xyz="0.00937154605945142 -0.0183514409006279 -0.00213050813223611"
+        rpy="0 0 0" />
+      <mass
+        value="0.0423278952416158" />
+      <inertia
+        ixx="9.68819007445228E-06"
+        ixy="-1.14547785891207E-06"
+        ixz="1.8241043241999E-08"
+        iyy="9.7195653452821E-06"
+        iyz="1.20737618180169E-07"
+        izz="1.13638462227589E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/gripper_left.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/gripper_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gripper_joint1"
+    type="prismatic">
+    <origin
+      xyz="-0.042091 2.7531E-05 -1.3031E-05"
+      rpy="0 0 -1.5708" />
+    <parent
+      link="gripper_link" />
+    <child
+      link="gripper_left" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="0.0515"
+      effort="100"
+      velocity="15" />
+  </joint>
+  <link
+    name="gripper_right">
+    <inertial>
+      <origin
+        xyz="0.0093715459993667 0.0183514410059713 0.00213050822993752"
+        rpy="0 0 0" />
+      <mass
+        value="0.0423278949561274" />
+      <inertia
+        ixx="9.68819002375832E-06"
+        ixy="1.14547786360874E-06"
+        ixz="-1.82410118281854E-08"
+        iyy="9.7195652747221E-06"
+        iyz="1.20737613592695E-07"
+        izz="1.13638461944347E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/gripper_right.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.627450980392157 0.627450980392157 0.627450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://reBot_B601_DM_with_gripper/meshes/gripper_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gripper_joint2"
+    type="prismatic">
+    <origin
+      xyz="-0.042091 -2.7531E-05 1.3031E-05"
+      rpy="0 0 1.5708" />
+    <parent
+      link="gripper_link" />
+    <child
+      link="gripper_right" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="0.0515"
+      effort="100"
+      velocity="15" />
+  </joint>
+</robot>

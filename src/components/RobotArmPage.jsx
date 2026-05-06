@@ -137,7 +137,7 @@ function RobotArmToolbar({
   );
 }
 
-function ArmSimPanel({ jointTargets, trail }) {
+function ArmSimPanel({ jointTargets, trail, gripperOpening, setGripperOpening }) {
   const { t } = useI18n();
   return (
     <div className="armSimPanel">
@@ -192,6 +192,21 @@ function ArmSimPanel({ jointTargets, trail }) {
           </div>
         </div>
         <div className="armSimFieldRow">
+          <label className="armSimField">
+            <span>Gripper</span>
+            <div className="armColorField">
+              <input
+                type="range"
+                min="0"
+                max="0.0515"
+                step="0.0005"
+                disabled={trail.urdfReplayBusy}
+                value={gripperOpening}
+                onChange={(e) => setGripperOpening(Math.max(0, Math.min(0.0515, Number(e.target.value) || 0)))}
+              />
+              <code>{Number(gripperOpening || 0).toFixed(4)} m</code>
+            </div>
+          </label>
           <label className="armSimField">
             <span>{t('arm_traj_visible')}</span>
             <select
@@ -276,6 +291,15 @@ function ArmSimPanel({ jointTargets, trail }) {
   );
 }
 
+function mapJoint7ToGripperOpening(joint7Raw) {
+  const joint7 = Number(joint7Raw);
+  if (!Number.isFinite(joint7)) return 0;
+  const min = -5.7;
+  const max = 0;
+  const t = (Math.max(min, Math.min(max, joint7)) - min) / (max - min);
+  return t * 0.0515;
+}
+
 export function RobotArmPage() {
   const { t } = useI18n();
   const { connected, canAction } = useConnectionContext();
@@ -317,6 +341,7 @@ export function RobotArmPage() {
     detail: '',
   });
   const [firstUseOpen, setFirstUseOpen] = React.useState(false);
+  const [gripperOpening, setGripperOpening] = React.useState(0);
   const rowsRef = React.useRef(robotArmJointRows);
   const controlSyncSignatureRef = React.useRef('');
 
@@ -443,6 +468,12 @@ export function RobotArmPage() {
                               zero.jointLimit(row.joint),
                             );
                           });
+                          const joint7Target = Number(jointTargets.joint7);
+                          const linkedGripperOpening = mapJoint7ToGripperOpening(joint7Target);
+                          const effectiveGripperOpening =
+                            Number.isFinite(joint7Target) ? linkedGripperOpening : Number(gripperOpening) || 0;
+                          jointTargets.gripper_joint1 = effectiveGripperOpening;
+                          jointTargets.gripper_joint2 = effectiveGripperOpening;
 
                           return (
                             <>
@@ -535,7 +566,12 @@ export function RobotArmPage() {
                                         showLimitToast={showLimitToast}
                                       />
 
-                                      <ArmSimPanel jointTargets={jointTargets} trail={trail} />
+                                      <ArmSimPanel
+                                        jointTargets={jointTargets}
+                                        trail={trail}
+                                        gripperOpening={gripperOpening}
+                                        setGripperOpening={setGripperOpening}
+                                      />
                                     </div>
                                   )}
                                 </LiveMoveScheduler>

@@ -6,7 +6,7 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import URDFLoader from 'urdf-loader';
 
-const URDF_PATH = '/resources/arm01/urdf/reBot-DevArm_description_fixend.urdf';
+const URDF_PATH = '/resources/arm02/reBot_B601_DM_with_gripper/urdf/reBot_B601_DM_with_gripper.urdf';
 const DEFAULT_CAMERA_POS = new THREE.Vector3(1.15, 0.95, 1.2);
 const DEFAULT_TARGET = new THREE.Vector3(0, 0.35, 0);
 const TRAIL_MAX_POINTS = 1200;
@@ -816,7 +816,7 @@ export function ArmUrdfViewer({
     trailHeadRef.current = trailHead;
 
     const loader = new URDFLoader();
-    loader.packages = { 'reBot-DevArm_description_fixend': '/resources/arm01' };
+    loader.packages = { reBot_B601_DM_with_gripper: '/resources/arm02/reBot_B601_DM_with_gripper' };
     loader.load(
       URDF_PATH,
       (robot) => {
