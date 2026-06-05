@@ -115,7 +115,7 @@ export function useRobotArmOps({
           def.dataType === 'u32'
             ? Math.round(Number(values[def.key]) || 0)
             : Number(values[def.key]) || 0;
-        const ret = await sendCmd(op, { rid: def.rid, value }, 3000);
+        const ret = await sendCmd(op, { rid: def.rid, verify: false, value }, 3000);
         if (!ret?.ok) throw new Error(ret?.error || `${op} failed`);
       }
 
