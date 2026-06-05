@@ -25,6 +25,7 @@ export function useRobotArmOps({
   closeBusQuietly,
 }) {
   const [armBulkBusy, setArmBulkBusy] = useState(false);
+  const [armParamOpBusy, setArmParamOpBusy] = useState(false);
   const [armSelfCheckBusy, setArmSelfCheckBusy] = useState(false);
   const [armSelfCheckProgress, setArmSelfCheckProgress] = useState({
     active: false,
@@ -78,7 +79,9 @@ export function useRobotArmOps({
       throw new Error('read control params is damiao-only');
     }
 
-    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id, {
+      enableStreams: false,
+    });
     try {
       const values = {};
       for (const def of readDefs) {
@@ -101,7 +104,9 @@ export function useRobotArmOps({
     if (!h || String(h.vendor) !== 'damiao') {
       throw new Error('write control params is damiao-only');
     }
-    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id, {
+      enableStreams: false,
+    });
     try {
       for (const def of writeDefs) {
         if (!(def.key in values)) continue;
@@ -128,7 +133,9 @@ export function useRobotArmOps({
       throw new Error('read control params is robstride-only');
     }
 
-    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id, {
+      enableStreams: false,
+    });
     try {
       const values = {};
       for (const def of ROBSTRIDE_ARM_PARAM_DEFS) {
@@ -155,7 +162,9 @@ export function useRobotArmOps({
     if (!h || String(h.vendor) !== 'robstride') {
       throw new Error('write control params is robstride-only');
     }
-    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id, {
+      enableStreams: false,
+    });
     try {
       for (const def of ROBSTRIDE_ARM_PARAM_DEFS.filter((x) => x.writable !== false)) {
         if (!(def.key in values)) continue;
@@ -477,6 +486,8 @@ export function useRobotArmOps({
     scanRobotArmJoint,
     scanRobotArmAll,
     armBulkBusy,
+    armParamOpBusy,
+    setArmParamOpBusy,
     armSelfCheckBusy,
     armSelfCheckProgress,
     armSelfCheckReport,

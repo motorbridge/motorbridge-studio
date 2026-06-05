@@ -374,7 +374,7 @@ function mapJoint7ToGripperOpening(joint7Raw) {
 
 export function RobotArmPage() {
   const { t } = useI18n();
-  const { connected, canAction } = useConnectionContext();
+  const { connected, canAction, sendCmd } = useConnectionContext();
   const { uiPrefs, setUiPref } = usePreferencesContext();
   const { patchControl, controlMotor, zeroMotor, refreshMotorState } = useControlContext();
   const {
@@ -382,6 +382,7 @@ export function RobotArmPage() {
     armScanBusy,
     armScanProgress,
     armBulkBusy,
+    setArmParamOpBusy,
     armSelfCheckBusy,
     armSelfCheckProgress,
     armSelfCheckReport,
@@ -520,6 +521,8 @@ export function RobotArmPage() {
                         robotArmJointRows={robotArmJointRows}
                         readRobotArmControlParams={readRobotArmControlParams}
                         writeRobotArmControlParams={writeRobotArmControlParams}
+                        sendCmd={sendCmd}
+                        setArmParamOpBusy={setArmParamOpBusy}
                         askZeroConfirm={zero.askZeroConfirm}
                         canAction={canAction}
                         armToolbarBusy={armToolbarBusy}

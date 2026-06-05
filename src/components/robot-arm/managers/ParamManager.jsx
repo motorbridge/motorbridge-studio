@@ -18,6 +18,8 @@ export function ParamManager({
   robotArmJointRows,
   readRobotArmControlParams,
   writeRobotArmControlParams,
+  sendCmd,
+  setArmParamOpBusy,
   askZeroConfirm,
   canAction,
   armToolbarBusy,
@@ -180,6 +182,9 @@ export function ParamManager({
         });
         if (!confirmed) return;
       }
+      setArmParamOpBusy?.(true);
+      await sendCmd?.('state_stream', { enabled: false }, 3000);
+      await sendCmd?.('param_stream', { enabled: false }, 3000);
       const writeResult = await writeRobotArmControlParams(rows, { onProgress: setParamProgress });
       const readBack = await readRobotArmControlParams({ onProgress: setParamProgress });
       applyReadResultToRows(readBack);
@@ -215,6 +220,9 @@ export function ParamManager({
     } catch (e) {
       setParamInfo(`${t('arm_params_write_failed')}: ${e.message || e}`);
     } finally {
+      await sendCmd?.('state_stream', { enabled: true }, 3000).catch(() => {});
+      await sendCmd?.('param_stream', { enabled: true }, 3000).catch(() => {});
+      setArmParamOpBusy?.(false);
       setParamBusy(false);
     }
   }, [
@@ -227,6 +235,8 @@ export function ParamManager({
     readRobotArmControlParams,
     riskyParamDefs,
     t,
+    sendCmd,
+    setArmParamOpBusy,
     writableParamDefs,
     writeRobotArmControlParams,
   ]);

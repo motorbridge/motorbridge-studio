@@ -7,8 +7,7 @@
 .motorCards {
   display: grid;
   gap: 8px;
-  height: 520px;
-  max-height: 520px;
+  max-height: 800px;
   overflow-y: auto;
   overflow-x: hidden;
   align-content: start;
@@ -311,7 +310,7 @@
 .armLeftPane {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  max-height: 800px;
 }
 
 .armRightPane {
@@ -586,7 +585,6 @@
   }
 }
 
-
 .armLiveToggle {
   display: inline-flex;
   align-items: center;
@@ -818,7 +816,7 @@
   background: rgba(13, 23, 42, 0.45);
   backdrop-filter: blur(2px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 16px;
 }

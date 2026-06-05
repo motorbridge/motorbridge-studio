@@ -72,6 +72,7 @@ function preserveParamStreamFields(hit, next) {
 
 export function useMotorStudio() {
   const { t } = useI18n();
+  const armParamOpBusyRef = useRef(false);
 
   const [hits, setHits] = usePersistedState(LS_HITS_KEY, [], (cached) =>
     Array.isArray(cached) ? cached : []
@@ -100,6 +101,7 @@ export function useMotorStudio() {
 
   const handleGatewayState = useCallback(
     (state) => {
+      if (armParamOpBusyRef.current) return;
       setHits((prev) => {
         const index = findStreamHitIndex(prev, state, activeMotorKey);
         if (index < 0) return prev;
@@ -115,6 +117,7 @@ export function useMotorStudio() {
 
   const handleGatewayParams = useCallback(
     (data) => {
+      if (armParamOpBusyRef.current) return;
       setHits((prev) => {
         const index = findStreamHitIndex(prev, data, activeMotorKey);
         if (index < 0) return prev;
@@ -208,7 +211,14 @@ export function useMotorStudio() {
   const gatewayConnected = connectionState.connected;
   const sendGatewayCmd = connectionState.sendCmd;
   const damiaoArmTelemetryPaused =
-    scanState.scanBusy || robotArmState.armBulkBusy || robotArmState.armSelfCheckBusy;
+    scanState.scanBusy ||
+    robotArmState.armBulkBusy ||
+    robotArmState.armParamOpBusy ||
+    robotArmState.armSelfCheckBusy;
+
+  useEffect(() => {
+    armParamOpBusyRef.current = Boolean(robotArmState.armParamOpBusy);
+  }, [robotArmState.armParamOpBusy]);
 
   useEffect(() => {
     damiaoArmTelemetryUnsupportedRef.current = false;
@@ -446,6 +456,8 @@ export function useMotorStudio() {
       armScanBusy: robotArmState.armScanBusy,
       armScanProgress: robotArmState.armScanProgress,
       armBulkBusy: robotArmState.armBulkBusy,
+      armParamOpBusy: robotArmState.armParamOpBusy,
+      setArmParamOpBusy: robotArmState.setArmParamOpBusy,
       armSelfCheckBusy: robotArmState.armSelfCheckBusy,
       armSelfCheckProgress: robotArmState.armSelfCheckProgress,
       armSelfCheckReport: robotArmState.armSelfCheckReport,
