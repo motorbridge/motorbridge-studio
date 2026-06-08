@@ -188,6 +188,7 @@ export function useMotorStudio() {
     sendCmd: connectionState.sendCmd,
     closeBusQuietly: connectionState.closeBusQuietly,
   });
+  armParamOpBusyRef.current = Boolean(robotArmState.armParamOpBusy);
 
   const damiaoArmTelemetryUnsupportedRef = useRef(false);
   const damiaoArmTelemetryItems = useMemo(
@@ -215,10 +216,6 @@ export function useMotorStudio() {
     robotArmState.armBulkBusy ||
     robotArmState.armParamOpBusy ||
     robotArmState.armSelfCheckBusy;
-
-  useEffect(() => {
-    armParamOpBusyRef.current = Boolean(robotArmState.armParamOpBusy);
-  }, [robotArmState.armParamOpBusy]);
 
   useEffect(() => {
     damiaoArmTelemetryUnsupportedRef.current = false;
