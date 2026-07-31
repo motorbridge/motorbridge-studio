@@ -11,7 +11,7 @@ function renderWithStudio(ui) {
     connection: {
       gatewayCapabilities: {
         vendors: {
-          robstride: { modes: ['mit', 'pos_vel', 'vel'] },
+          robstride: { modes: ['mit', 'pos_vel', 'pos_vel_pp', 'pos_vel_csp', 'vel'] },
         },
       },
     },
@@ -46,6 +46,7 @@ function createRow(mode = 'pos_vel', target = 0) {
       mode,
       target,
       vlim: 1,
+      acc: 10,
       kp: 30,
       kd: 1,
       tau: 0,
@@ -120,7 +121,32 @@ describe('JointControlPanel', () => {
     expect(sliderInput.disabled).toBe(true);
     expect(checkbox.disabled).toBe(true);
     expect(checkbox.checked).toBe(false);
-    expect(screen.getByText('Slider is enabled for position modes only: mit / pos_vel / force_pos.')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Slider is enabled for position modes only: mit / pos_vel / pos_vel_pp / pos_vel_csp / force_pos.'
+      )
+    ).toBeTruthy();
+  });
+
+  it('shows only native PP motion parameters and disables Live Move', () => {
+    renderPanel({ activeRow: createRow('pos_vel_pp'), liveMove: true });
+
+    expect(screen.getByText('PP position (vel_max + acc_set)')).toBeTruthy();
+    expect(screen.getByText('vel_max').parentElement?.querySelector('input')).toBeTruthy();
+    expect(screen.getByText('acc_set').parentElement?.querySelector('input')).toBeTruthy();
+    expect(screen.queryByText('KP')).toBeNull();
+    expect(screen.queryByText('KD')).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Live move while dragging' }).disabled).toBe(true);
+  });
+
+  it('shows CSP limit_spd and keeps Live Move available', () => {
+    renderPanel({ activeRow: createRow('pos_vel_csp'), liveMove: true });
+
+    expect(screen.getByText('CSP position (limit_spd)')).toBeTruthy();
+    expect(screen.getByText('limit_spd').parentElement?.querySelector('input')).toBeTruthy();
+    const checkbox = screen.getByRole('checkbox', { name: 'Live move while dragging' });
+    expect(checkbox.disabled).toBe(false);
+    expect(checkbox.checked).toBe(true);
   });
 
   it('passes transient negative target text through input changes', () => {

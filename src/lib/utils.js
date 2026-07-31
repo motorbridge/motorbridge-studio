@@ -17,7 +17,7 @@ export function toHex(n) {
   return `0x${Number(n).toString(16).toUpperCase()}`;
 }
 
-export const NUMERIC_CONTROL_FIELDS = new Set(['target', 'vlim', 'kp', 'kd', 'tau', 'ratio', 'newEsc', 'newMst']);
+export const NUMERIC_CONTROL_FIELDS = new Set(['target', 'vlim', 'acc', 'kp', 'kd', 'tau', 'ratio', 'newEsc', 'newMst']);
 
 export function normalizeControlValue(field, value, fallback = 0) {
   if (!NUMERIC_CONTROL_FIELDS.has(field)) return value;
@@ -90,6 +90,7 @@ export function defaultControlsForHit(hit) {
     enabled: false,
     target: 0,
     vlim: 1,
+    acc: 10,
     kp: 30,
     kd: 1,
     tau: 0,

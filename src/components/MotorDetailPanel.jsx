@@ -21,12 +21,12 @@ import { useI18n } from '../i18n';
 import { useConnectionContext, usePreferencesContext } from '../hooks/useMotorStudioContext';
 import { ConfirmDialog } from './ConfirmDialog';
 
-function ModeSelect({ modes, value, onChange }) {
+function ModeSelect({ modes, value, onChange, getLabel = (mode) => mode }) {
   return (
     <select value={value} onChange={onChange}>
       {modes.map((mode) => (
         <option key={mode} value={mode}>
-          {mode}
+          {getLabel(mode)}
         </option>
       ))}
     </select>
@@ -103,11 +103,19 @@ export function MotorDetailPanel({
   const activeMotorIdentity = activeMotor ? motorKey(activeMotor) : '';
   const modeOptions = modesForVendor(gatewayCapabilities, vendor);
   const isRobstridePosVel = vendor === 'robstride' && activeControl?.mode === 'pos_vel';
+  const isRobstridePp = vendor === 'robstride' && activeControl?.mode === 'pos_vel_pp';
+  const isRobstrideCsp = vendor === 'robstride' && activeControl?.mode === 'pos_vel_csp';
+  const isRobstrideNativePosition = isRobstridePp || isRobstrideCsp;
   const positionSliderEnabled =
     activeControl?.mode === 'mit' ||
     activeControl?.mode === 'pos_vel' ||
+    activeControl?.mode === 'pos_vel_pp' ||
+    activeControl?.mode === 'pos_vel_csp' ||
     activeControl?.mode === 'force_pos';
-  const liveMoveSupported = activeControl?.mode === 'pos_vel' || activeControl?.mode === 'force_pos';
+  const liveMoveSupported =
+    activeControl?.mode === 'pos_vel' ||
+    activeControl?.mode === 'pos_vel_csp' ||
+    activeControl?.mode === 'force_pos';
   const liveSliderEnabled =
     Boolean(uiPrefs?.generalSliderLiveMove) && liveMoveSupported && connected;
   const sliderBounds = positionSliderBounds();
@@ -397,39 +405,71 @@ export function MotorDetailPanel({
       <div className="grid3 denseGrid">
         <div className="field">
           <label>{t('mode')}</label>
-          <ModeSelect modes={modeOptions} value={activeControl.mode} onChange={patch('mode')} />
+          <ModeSelect
+            modes={modeOptions}
+            value={activeControl.mode}
+            onChange={patch('mode')}
+            getLabel={(mode) => {
+              if (vendor === 'robstride' && mode === 'pos_vel_pp') {
+                return t('robstride_mode_pp');
+              }
+              if (vendor === 'robstride' && mode === 'pos_vel_csp') {
+                return t('robstride_mode_csp');
+              }
+              return mode;
+            }}
+          />
         </div>
         <Field
           label={t(targetLabelKey)}
           value={controlInputValue(activeControl.target)}
           onChange={patchNumber('target')}
         />
-        <Field
-          label={t('vlim')}
-          value={controlInputValue(activeControl.vlim)}
-          onChange={patchNumber('vlim')}
-          disabled={vlimDisabled}
-        />
-        <Field
-          label={t('kp')}
-          value={controlInputValue(activeControl.kp)}
-          onChange={patchNumber('kp')}
-        />
-        <Field
-          label={t('kd')}
-          value={controlInputValue(activeControl.kd)}
-          onChange={patchNumber('kd')}
-        />
-        <Field
-          label={t('tau')}
-          value={controlInputValue(activeControl.tau)}
-          onChange={patchNumber('tau')}
-        />
-        <Field
-          label={t('ratio')}
-          value={controlInputValue(activeControl.ratio)}
-          onChange={patchNumber('ratio')}
-        />
+        {isRobstrideNativePosition ? (
+          <>
+            <Field
+              label={t(isRobstridePp ? 'vel_max' : 'limit_spd')}
+              value={controlInputValue(activeControl.vlim)}
+              onChange={patchNumber('vlim')}
+            />
+            {isRobstridePp && (
+              <Field
+                label={t('acc_set')}
+                value={controlInputValue(activeControl.acc)}
+                onChange={patchNumber('acc')}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            <Field
+              label={t('vlim')}
+              value={controlInputValue(activeControl.vlim)}
+              onChange={patchNumber('vlim')}
+              disabled={vlimDisabled}
+            />
+            <Field
+              label={t('kp')}
+              value={controlInputValue(activeControl.kp)}
+              onChange={patchNumber('kp')}
+            />
+            <Field
+              label={t('kd')}
+              value={controlInputValue(activeControl.kd)}
+              onChange={patchNumber('kd')}
+            />
+            <Field
+              label={t('tau')}
+              value={controlInputValue(activeControl.tau)}
+              onChange={patchNumber('tau')}
+            />
+            <Field
+              label={t('ratio')}
+              value={controlInputValue(activeControl.ratio)}
+              onChange={patchNumber('ratio')}
+            />
+          </>
+        )}
         <Field
           label={t('new_esc')}
           value={controlInputValue(activeControl.newEsc)}
@@ -442,6 +482,8 @@ export function MotorDetailPanel({
         />
       </div>
       {isRobstridePosVel && <div className="tip">{t('robstride_pos_vel_tip')}</div>}
+      {isRobstridePp && <div className="tip">{t('robstride_pp_tip')}</div>}
+      {isRobstrideCsp && <div className="tip">{t('robstride_csp_tip')}</div>}
       <div className="field armSliderWrap">
         <label>
           {t('general_target_slider')}: {sliderTarget.toFixed(3)}
@@ -860,7 +902,11 @@ export function MotorDetailPanel({
         <button disabled={!connected} onClick={() => controlMotor(activeMotor, 'enable')}>
           {t('enable')}
         </button>
-        <button disabled={!connected} onClick={() => controlMotor(activeMotor, 'disable')}>
+        <button
+          disabled={!connected}
+          title={vendor === 'robstride' ? t('robstride_disable_warning') : ''}
+          onClick={() => controlMotor(activeMotor, 'disable')}
+        >
           {t('disable')}
         </button>
         <button
@@ -877,7 +923,11 @@ export function MotorDetailPanel({
         >
           {t('zero_set')}
         </button>
-        <button disabled={!connected} onClick={() => controlMotor(activeMotor, 'stop')}>
+        <button
+          disabled={!connected}
+          title={vendor === 'robstride' ? t('robstride_stop_hint') : ''}
+          onClick={() => controlMotor(activeMotor, 'stop')}
+        >
           {t('stop')}
         </button>
         <button disabled={!connected} onClick={() => probeMotor(activeMotor)}>
@@ -896,6 +946,9 @@ export function MotorDetailPanel({
           {t('refresh_state')}
         </button>
       </div>
+      {vendor === 'robstride' && (
+        <div className="tip warnText">{t('robstride_stop_disable_warning')}</div>
+      )}
       {connected && !activeControl.enabled && (
         <div className="tip">{t('zero_requires_enable')}</div>
       )}

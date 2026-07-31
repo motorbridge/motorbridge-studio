@@ -23,4 +23,21 @@ describe('ws capabilities helpers', () => {
     expect(caps.vendors.robstride.modes).toEqual(['mit', 'pos_vel', 'vel']);
     expect(caps.vendors.robstride.ops_vendor_native).toContain('robstride_read_param');
   });
+
+  it('exposes explicit RobStride PP and CSP modes advertised by a new gateway', () => {
+    const caps = normalizeGatewayCapabilities({
+      data: {
+        vendors: {
+          robstride: {
+            modes: ['mit', 'pos_vel', 'pos_vel_pp', 'pos_vel_csp', 'vel'],
+          },
+        },
+      },
+    });
+
+    expect(modesForVendor(caps, 'robstride')).toContain('pos_vel_pp');
+    expect(modesForVendor(caps, 'robstride')).toContain('pos_vel_csp');
+    expect(modesForVendor(caps, 'damiao')).not.toContain('pos_vel_pp');
+    expect(modesForVendor(caps, 'damiao')).not.toContain('pos_vel_csp');
+  });
 });

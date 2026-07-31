@@ -12,7 +12,7 @@ function renderWithStudio(ui) {
     connection: {
       gatewayCapabilities: {
         vendors: {
-          robstride: { modes: ['mit', 'pos_vel', 'vel'] },
+          robstride: { modes: ['mit', 'pos_vel', 'pos_vel_pp', 'pos_vel_csp', 'vel'] },
         },
       },
     },
@@ -123,7 +123,51 @@ describe('MotorDetailPanel control UI', () => {
     );
 
     expect(screen.getByRole('checkbox', { name: 'Live move while dragging' }).disabled).toBe(true);
-    expect(screen.getByText('Live Move is disabled in MIT mode for safety. Dragging only updates the target; click Move to send.')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Live Move is disabled in MIT mode for safety. Dragging only updates the target; click Move to send.'
+      )
+    ).toBeTruthy();
+  });
+
+  it('shows RobStride PP native fields and hides generic gains', () => {
+    renderWithStudio(
+      <MotorDetailPanel
+        connected
+        activeMotor={{
+          vendor: 'robstride',
+          model: 'rs-00',
+          esc_id: 1,
+          mst_id: 0xfd,
+          probe: 1,
+          updated_at_ms: Date.now(),
+        }}
+        activeControl={{
+          mode: 'pos_vel_pp',
+          target: 0,
+          vlim: 0.02,
+          acc: 0.5,
+          kp: 30,
+          kd: 1,
+          tau: 0,
+        }}
+        patchControl={vi.fn()}
+        controlMotor={vi.fn()}
+        zeroMotor={vi.fn()}
+        probeMotor={vi.fn()}
+        setIdFor={vi.fn()}
+        verifyHit={vi.fn()}
+        refreshMotorState={vi.fn()}
+        runMotorOp={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('PP position (vel_max + acc_set)')).toBeTruthy();
+    expect(screen.getByText('vel_max').parentElement?.querySelector('input')).toBeTruthy();
+    expect(screen.getByText('acc_set').parentElement?.querySelector('input')).toBeTruthy();
+    expect(screen.queryByText('KP')).toBeNull();
+    expect(screen.queryByText('KD')).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Live move while dragging' }).disabled).toBe(true);
   });
 
   it('calls enable with only the active motor', async () => {

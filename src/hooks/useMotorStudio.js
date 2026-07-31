@@ -187,6 +187,7 @@ export function useMotorStudio() {
     setTargetFor: connectionState.setTargetFor,
     sendCmd: connectionState.sendCmd,
     closeBusQuietly: connectionState.closeBusQuietly,
+    gatewayCapabilities: connectionState.gatewayCapabilities,
   });
 
   const damiaoArmTelemetryUnsupportedRef = useRef(false);

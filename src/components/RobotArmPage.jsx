@@ -1,8 +1,14 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
-import { ROBOT_ARM_MODELS, ZERO_SAFE_EPS_RAD, jointLimitsForProfile, armVendorForProfile } from '../lib/robotArm';
+import {
+  ROBOT_ARM_MODELS,
+  ZERO_SAFE_EPS_RAD,
+  jointLimitsForProfile,
+  armVendorForProfile,
+} from '../lib/robotArm';
 import { parseNum } from '../lib/utils';
+import { modesForVendor } from '../lib/wsCapabilities';
 import { ArmUrdfViewer } from './ArmUrdfViewer';
 import { ProgressBar } from './ProgressBar';
 import {
@@ -394,7 +400,7 @@ function mapJoint7ToGripperOpening(joint7Raw, { joint7Min, joint7Max, openingMax
 
 export function RobotArmPage() {
   const { t } = useI18n();
-  const { connected, canAction, sendCmd } = useConnectionContext();
+  const { connected, canAction, sendCmd, gatewayCapabilities } = useConnectionContext();
   const { uiPrefs, setUiPref } = usePreferencesContext();
   const { patchControl, controlMotor, zeroMotor, refreshMotorState } = useControlContext();
   const {
@@ -446,8 +452,9 @@ export function RobotArmPage() {
       const lim = jointLimits[Number(row.joint)] || { min: -3.14, max: 3.14 };
       const rawPos = Number(row?.hit?.pos);
       const synced = row?.hit?.online && Number.isFinite(rawPos) ? clampByLimit(rawPos, lim) : 0;
+      const vendor = String(row.hit?.vendor || '').toLowerCase();
       patchControl(row.key, {
-        mode: armPreferredMode(),
+        mode: armPreferredMode(vendor, modesForVendor(gatewayCapabilities, vendor)),
         vlim: 1,
         tau: 0,
         kp: 30,
@@ -456,7 +463,7 @@ export function RobotArmPage() {
       });
     });
     controlSyncSignatureRef.current = syncSignature;
-  }, [jointLimits, robotArmJointRows, patchControl, robotArmModel]);
+  }, [gatewayCapabilities, jointLimits, robotArmJointRows, patchControl, robotArmModel]);
 
   React.useEffect(() => {
     if (robotArmJointRows.length === 0) return;
@@ -526,6 +533,7 @@ export function RobotArmPage() {
                   patchControl={patchControl}
                   controlMotor={controlMotor}
                   limits={jointLimits}
+                  gatewayCapabilities={gatewayCapabilities}
                 >
                   {(sequence) => {
                     const armToolbarBusy =

@@ -95,7 +95,8 @@ export const zh = {
   arm_first_use_step_2: '先手动将 7 个关节摆到合理机械初始位，确保周围无干涉。',
   arm_first_use_step_3: '点击“扫描全部关节”，确认在线状态正常。',
   arm_first_use_step_4: '确认当前位置正确后，再执行“全部校零”（会有多次安全确认）。',
-  arm_first_use_step_5: '完成后建议“读取参数”留档，然后套用默认模板写入默认参数；若后续出现异常，先回机械零位再重校零。',
+  arm_first_use_step_5:
+    '完成后建议“读取参数”留档，然后套用默认模板写入默认参数；若后续出现异常，先回机械零位再重校零。',
   arm_prepare_cards: '准备 7 张卡片',
   arm_scan_all: '扫描全部关节',
   arm_self_check: '一键自检',
@@ -248,7 +249,17 @@ export const zh = {
   log_capabilities_gateway: '已从网关读取 WS capabilities',
   log_capabilities_fallback: '使用 v0.3.5 fallback 能力表：{{err}}',
   robstride_pos_vel_tip:
-    'RobStride pos_vel 映射到原生 Position 模式。有效字段：target/pos、vlim、kp 作为 loc_kp；vel、kd、tau 会被网关忽略。',
+    '旧版 RobStride pos_vel 是 PP 兼容别名：target 映射到 loc_ref，vlim 映射到 vel_max。网关声明支持时，请优先选择明确的 PP 或 CSP。',
+  robstride_mode_pp: 'PP 位置（vel_max + acc_set）',
+  robstride_mode_csp: 'CSP 位置（limit_spd）',
+  robstride_pp_tip:
+    'PP 以单次命令发送 loc_ref、vel_max 和 acc_set。PP 运动中不能修改速度和加速度，因此禁用 Live Move。',
+  robstride_csp_tip: 'CSP 发送 loc_ref 和 limit_spd，可用 Live Move 连续更新位置目标。',
+  robstride_stop_hint:
+    '请求根据当前模式受控停车并保持力矩。成功响应仅确认命令已发送，不代表运动已经确认停止。',
+  robstride_disable_warning: '失能会取消电机力矩；如果关节承受重力且机械臂未支撑，可能下坠。',
+  robstride_stop_disable_warning:
+    '停止是保持力矩的受控停车请求；失能是独立的取消力矩操作，重力轴可能下坠。',
 
   scan_selected_vendors: '扫描已选品牌',
   scan_selected: '扫描已选',
@@ -310,13 +321,19 @@ export const zh = {
   target_vel: '目标速度',
   general_target_slider: '期望角度滑条',
   general_target_slider_tip: '拖动只修改目标值；点击“执行”后才会下发命令。',
-  general_target_slider_live_tip: '实时模式已开启：拖动会节流下发 pos_vel/force_pos 命令。',
-  general_target_slider_mit_live_disabled: 'MIT 模式出于安全考虑禁用 Live Move；拖动只修改目标值，点击“执行”后才会下发。',
-  general_target_slider_disabled: '滑条仅在位置类模式启用：mit / pos_vel / force_pos。',
+  general_target_slider_live_tip:
+    '实时模式已开启：拖动会节流下发 pos_vel/pos_vel_csp/force_pos 命令。',
+  general_target_slider_mit_live_disabled:
+    'MIT 模式出于安全考虑禁用 Live Move；拖动只修改目标值，点击“执行”后才会下发。',
+  general_target_slider_disabled:
+    '滑条仅在位置类模式启用：mit / pos_vel / pos_vel_pp / pos_vel_csp / force_pos。',
   general_live_move: '拖动实时发送',
   general_live_move_on: '实时模式开启',
   general_live_move_off: '手动模式',
   vlim: '速度限制',
+  vel_max: 'vel_max',
+  acc_set: 'acc_set',
+  limit_spd: 'limit_spd',
   kp: 'KP',
   kd: 'KD',
   tau: 'TAU',

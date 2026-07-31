@@ -12,8 +12,11 @@ function modeDefaultsForRow(row, nextMode) {
     }
     return { mode: nextMode, kp: 12, kd: 0.5, tau: 0 };
   }
-  if (nextMode === 'pos_vel') {
+  if (nextMode === 'pos_vel' || nextMode === 'pos_vel_csp') {
     return { mode: nextMode, vlim: 1 };
+  }
+  if (nextMode === 'pos_vel_pp') {
+    return { mode: nextMode, vlim: 1, acc: 10 };
   }
   if (nextMode === 'vel') {
     return { mode: nextMode };
@@ -46,12 +49,20 @@ export function JointControlPanel({
   const vendor = String(activeRow?.hit?.vendor || '').toLowerCase();
   const mode = String(activeRow?.control?.mode || 'pos_vel');
   const modeOptions = modesForVendor(gatewayCapabilities, vendor);
+  const isRobstridePp = vendor === 'robstride' && mode === 'pos_vel_pp';
+  const isRobstrideCsp = vendor === 'robstride' && mode === 'pos_vel_csp';
+  const isRobstrideNativePosition = isRobstridePp || isRobstrideCsp;
   const vlimDisabled = mode !== 'pos_vel' && mode !== 'force_pos';
   const tauDisabled = mode !== 'mit';
   const kpDisabled = mode !== 'mit';
   const kdDisabled = mode !== 'mit';
-  const positionSliderEnabled = mode === 'mit' || mode === 'pos_vel' || mode === 'force_pos';
-  const liveMoveSupported = mode === 'pos_vel' || mode === 'force_pos';
+  const positionSliderEnabled =
+    mode === 'mit' ||
+    mode === 'pos_vel' ||
+    mode === 'pos_vel_pp' ||
+    mode === 'pos_vel_csp' ||
+    mode === 'force_pos';
+  const liveMoveSupported = mode === 'pos_vel' || mode === 'pos_vel_csp' || mode === 'force_pos';
   const effectiveLiveMove = liveMoveSupported && liveMove;
   const targetLabelKey = mode === 'vel' ? 'target_vel' : 'target_pos';
   const patchNumber = (field) => (e) => {
@@ -83,52 +94,89 @@ export function JointControlPanel({
           >
             {modeOptions.map((m) => (
               <option key={m} value={m}>
-                {m}
+                {vendor === 'robstride' && m === 'pos_vel_pp'
+                  ? t('robstride_mode_pp')
+                  : vendor === 'robstride' && m === 'pos_vel_csp'
+                    ? t('robstride_mode_csp')
+                    : m}
               </option>
             ))}
           </select>
         </div>
-        <div className="field">
-          <label>{t('vlim')}</label>
-          <input
-            value={controlInputValue(activeRow.control.vlim)}
-            disabled={vlimDisabled}
-            onChange={patchNumber('vlim')}
-          />
-        </div>
-        <div className="field">
-          <label>{t('tau')}</label>
-          <input
-            value={controlInputValue(activeRow.control.tau)}
-            disabled={tauDisabled}
-            onChange={patchNumber('tau')}
-          />
-        </div>
-        <div className="field">
-          <label>{t('kp')}</label>
-          <input
-            value={controlInputValue(activeRow.control.kp)}
-            disabled={kpDisabled}
-            onChange={patchNumber('kp')}
-          />
-        </div>
-        <div className="field">
-          <label>{t('kd')}</label>
-          <input
-            value={controlInputValue(activeRow.control.kd)}
-            disabled={kdDisabled}
-            onChange={patchNumber('kd')}
-          />
-        </div>
-        <div className="field">
-          <label>{targetInputLabel}</label>
-          <input
-            aria-label={targetInputLabel}
-            value={controlInputValue(activeRow.control.target)}
-            onChange={(e) => onSliderTargetChange(e.target.value)}
-          />
-        </div>
+        {isRobstrideNativePosition ? (
+          <>
+            <div className="field">
+              <label>{targetInputLabel}</label>
+              <input
+                aria-label={targetInputLabel}
+                value={controlInputValue(activeRow.control.target)}
+                onChange={(e) => onSliderTargetChange(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>{t(isRobstridePp ? 'vel_max' : 'limit_spd')}</label>
+              <input
+                value={controlInputValue(activeRow.control.vlim)}
+                onChange={patchNumber('vlim')}
+              />
+            </div>
+            {isRobstridePp && (
+              <div className="field">
+                <label>{t('acc_set')}</label>
+                <input
+                  value={controlInputValue(activeRow.control.acc)}
+                  onChange={patchNumber('acc')}
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="field">
+              <label>{t('vlim')}</label>
+              <input
+                value={controlInputValue(activeRow.control.vlim)}
+                disabled={vlimDisabled}
+                onChange={patchNumber('vlim')}
+              />
+            </div>
+            <div className="field">
+              <label>{t('tau')}</label>
+              <input
+                value={controlInputValue(activeRow.control.tau)}
+                disabled={tauDisabled}
+                onChange={patchNumber('tau')}
+              />
+            </div>
+            <div className="field">
+              <label>{t('kp')}</label>
+              <input
+                value={controlInputValue(activeRow.control.kp)}
+                disabled={kpDisabled}
+                onChange={patchNumber('kp')}
+              />
+            </div>
+            <div className="field">
+              <label>{t('kd')}</label>
+              <input
+                value={controlInputValue(activeRow.control.kd)}
+                disabled={kdDisabled}
+                onChange={patchNumber('kd')}
+              />
+            </div>
+            <div className="field">
+              <label>{targetInputLabel}</label>
+              <input
+                aria-label={targetInputLabel}
+                value={controlInputValue(activeRow.control.target)}
+                onChange={(e) => onSliderTargetChange(e.target.value)}
+              />
+            </div>
+          </>
+        )}
       </div>
+      {isRobstridePp && <div className="tip">{t('robstride_pp_tip')}</div>}
+      {isRobstrideCsp && <div className="tip">{t('robstride_csp_tip')}</div>}
 
       <div className="field armSliderWrap">
         <label>
@@ -187,6 +235,7 @@ export function JointControlPanel({
         </button>
         <button
           disabled={perJointBusy}
+          title={vendor === 'robstride' ? t('robstride_disable_warning') : ''}
           onClick={() => runExclusive(() => controlMotor(activeRow.hit, 'disable'))}
         >
           {t('disable')}
@@ -196,6 +245,7 @@ export function JointControlPanel({
         </button>
         <button
           disabled={perJointBusy}
+          title={vendor === 'robstride' ? t('robstride_stop_hint') : ''}
           onClick={() => runExclusive(() => controlMotor(activeRow.hit, 'stop'))}
         >
           {t('stop')}
@@ -210,6 +260,9 @@ export function JointControlPanel({
           {t('refresh_state')}
         </button>
       </div>
+      {vendor === 'robstride' && (
+        <div className="tip warnText">{t('robstride_stop_disable_warning')}</div>
+      )}
     </div>
   );
 }
