@@ -1,6 +1,7 @@
 import React from 'react';
 import { useI18n } from '../../../i18n';
 import { sleep } from '../../../lib/async';
+import { modesForVendor } from '../../../lib/wsCapabilities';
 import { armPreferredMode, clampByLimit, jointLimit } from './armMotionUtils';
 
 const SAFE_DEMO_TARGETS = {
@@ -22,6 +23,7 @@ export function SequenceManager({
   patchControl,
   controlMotor,
   limits,
+  gatewayCapabilities,
   children,
 }) {
   const { t } = useI18n();
@@ -126,7 +128,8 @@ export function SequenceManager({
         throwIfStopped();
         const lim = jointLimit(step.row.joint, limits);
         const target = clampByLimit(Number(step.target), lim);
-        const mode = armPreferredMode();
+        const vendor = String(step.row.hit?.vendor || '').toLowerCase();
+        const mode = armPreferredMode(vendor, modesForVendor(gatewayCapabilities, vendor));
         patchControl(step.row.key, { mode, target });
         showDemoToast(
           'info',
@@ -168,6 +171,7 @@ export function SequenceManager({
     controlMotor,
     demoAction,
     enableAllRobotArm,
+    gatewayCapabilities,
     throwIfStopped,
     limits,
     patchControl,

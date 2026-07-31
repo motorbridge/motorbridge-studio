@@ -262,7 +262,19 @@ export const en = {
   log_capabilities_gateway: 'WS capabilities loaded from gateway',
   log_capabilities_fallback: 'Using v0.3.5 fallback capabilities: {{err}}',
   robstride_pos_vel_tip:
-    'RobStride pos_vel maps to native Position mode. Effective fields: target/pos, vlim, and kp as loc_kp; vel, kd, and tau are ignored by the gateway.',
+    'Legacy RobStride pos_vel is a PP compatibility alias: target maps to loc_ref and vlim maps to vel_max. Prefer the explicit PP or CSP mode when the gateway advertises it.',
+  robstride_mode_pp: 'PP position (vel_max + acc_set)',
+  robstride_mode_csp: 'CSP position (limit_spd)',
+  robstride_pp_tip:
+    'PP sends loc_ref, vel_max, and acc_set as a one-shot command. Live Move is disabled because PP speed and acceleration must not be changed during motion.',
+  robstride_csp_tip:
+    'CSP sends loc_ref and limit_spd. Live Move is available for continuously updated position targets.',
+  robstride_stop_hint:
+    'Request a mode-aware controlled stop while keeping torque enabled. A successful response confirms command delivery, not that motion has already ceased.',
+  robstride_disable_warning:
+    'Disable turns motor torque off. A gravity-loaded joint may drop unless the arm is supported.',
+  robstride_stop_disable_warning:
+    'Stop requests a controlled, torque-on stop. Disable is separate and turns torque off; gravity-loaded joints may drop.',
 
   scan_selected_vendors: 'Scan Selected Vendors',
   scan_selected: 'Scan Selected',
@@ -325,14 +337,18 @@ export const en = {
   general_target_slider: 'Target Angle Slider',
   general_target_slider_tip: 'Drag only updates the target value. Click Move to send the command.',
   general_target_slider_live_tip:
-    'Live mode is ON: dragging sends throttled pos_vel/force_pos commands.',
+    'Live mode is ON: dragging sends throttled pos_vel/pos_vel_csp/force_pos commands.',
   general_target_slider_mit_live_disabled:
     'Live Move is disabled in MIT mode for safety. Dragging only updates the target; click Move to send.',
-  general_target_slider_disabled: 'Slider is enabled for position modes only: mit / pos_vel / force_pos.',
+  general_target_slider_disabled:
+    'Slider is enabled for position modes only: mit / pos_vel / pos_vel_pp / pos_vel_csp / force_pos.',
   general_live_move: 'Live move while dragging',
   general_live_move_on: 'Live mode ON',
   general_live_move_off: 'Manual mode',
   vlim: 'Vlim',
+  vel_max: 'vel_max',
+  acc_set: 'acc_set',
+  limit_spd: 'limit_spd',
   kp: 'KP',
   kd: 'KD',
   tau: 'TAU',

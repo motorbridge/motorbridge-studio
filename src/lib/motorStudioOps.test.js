@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  controlMotorOp,
   invalidControlFields,
   mapParamStreamToHit,
   mapResponseToHit,
@@ -7,6 +8,88 @@ import {
 } from './motorStudioOps';
 
 describe('motor studio ops', () => {
+  async function sendMove(mode, controlPatch = {}, vendor = 'robstride') {
+    const h = {
+      vendor,
+      model: vendor === 'robstride' ? 'rs-00' : '4340',
+      esc_id: 1,
+      mst_id: vendor === 'robstride' ? 0xfd : 0x11,
+    };
+    const sendCmd = vi.fn().mockResolvedValue({ ok: true, data: {} });
+    const control = {
+      mode,
+      target: 0.25,
+      vlim: 0.02,
+      acc: 0.05,
+      kp: 30,
+      kd: 1,
+      tau: 0,
+      ratio: 0.1,
+      ...controlPatch,
+    };
+    const ok = await controlMotorOp({
+      h,
+      action: 'move',
+      controls: { [`${vendor}:1:${h.mst_id}`]: control },
+      vendors: { [vendor]: { model: h.model } },
+      setTargetFor: vi.fn().mockResolvedValue(undefined),
+      sendCmd,
+      setHits: vi.fn(),
+      setControls: vi.fn(),
+      pushLog: vi.fn(),
+    });
+    return { ok, sendCmd };
+  }
+
+  it('sends explicit RobStride PP op with vel_max and acc_set', async () => {
+    const { ok, sendCmd } = await sendMove('pos_vel_pp');
+
+    expect(ok).toBe(true);
+    expect(sendCmd).toHaveBeenCalledWith(
+      'pos_vel_pp',
+      {
+        vendor: 'robstride',
+        continuous: false,
+        pos: 0.25,
+        vel_max: 0.02,
+        acc_set: 0.05,
+      },
+      expect.any(Number)
+    );
+  });
+
+  it('sends explicit RobStride CSP op with limit_spd', async () => {
+    const { ok, sendCmd } = await sendMove('pos_vel_csp');
+
+    expect(ok).toBe(true);
+    expect(sendCmd).toHaveBeenCalledWith(
+      'pos_vel_csp',
+      {
+        vendor: 'robstride',
+        continuous: false,
+        pos: 0.25,
+        limit_spd: 0.02,
+      },
+      expect.any(Number)
+    );
+  });
+
+  it('keeps Damiao pos_vel routing unchanged', async () => {
+    const { ok, sendCmd } = await sendMove('pos_vel', {}, 'damiao');
+
+    expect(ok).toBe(true);
+    expect(sendCmd).toHaveBeenCalledWith(
+      'pos_vel',
+      expect.objectContaining({
+        vendor: 'damiao',
+        continuous: false,
+        pos: 0.25,
+        vlim: 0.02,
+      }),
+      expect.any(Number)
+    );
+  });
+
   it('unwraps gateway state_once payloads before merging RobStride telemetry', () => {
     const hit = {
       vendor: 'robstride',

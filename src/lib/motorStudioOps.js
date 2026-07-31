@@ -21,6 +21,7 @@ const lastMitSentAtByMotor = new Map();
 const CONTROL_FIELD_LABELS = Object.freeze({
   target: 'Target',
   vlim: 'Vlim',
+  acc: 'Acc set',
   kp: 'KP',
   kd: 'KD',
   tau: 'TAU',
@@ -48,6 +49,12 @@ function requiredMoveFields(h, mode) {
   if (mode === 'mit') return ['target', 'kp', 'kd', 'tau'];
   if (mode === 'vel') return ['target'];
   if (mode === 'force_pos') return ['target', 'vlim', 'ratio'];
+  if (String(h?.vendor) === 'robstride' && mode === 'pos_vel_pp') {
+    return ['target', 'vlim', 'acc'];
+  }
+  if (String(h?.vendor) === 'robstride' && mode === 'pos_vel_csp') {
+    return ['target', 'vlim'];
+  }
   if (String(h?.vendor) === 'robstride' && mode === 'pos_vel') return ['target', 'vlim', 'kp'];
   return ['target', 'vlim'];
 }
@@ -407,6 +414,7 @@ export async function controlMotorOp({
   }
   let target = parseNum(c.target, 0);
   const vlim = parseNum(c.vlim, 1);
+  const acc = parseNum(c.acc, 10);
   let kp = parseNum(c.kp, 30);
   let kd = parseNum(c.kd, 1);
   let tau = parseNum(c.tau, 0);
@@ -428,7 +436,17 @@ export async function controlMotorOp({
         CMD_TIMEOUTS.controlMs
       );
       if (!ret.ok) throw new Error(ret.error || `${action} failed`);
-      pushLog(`${action} ${h.vendor} ${toHex(h.esc_id)} ok`, 'ok');
+      if (action === 'stop' && String(h.vendor) === 'robstride') {
+        const mode = ret?.data?.mode ? ` mode=${ret.data.mode}` : '';
+        const strategy = ret?.data?.strategy ? ` strategy=${ret.data.strategy}` : '';
+        const confirmed = ret?.data?.motion_confirmed === true;
+        pushLog(
+          `stop ${h.vendor} ${toHex(h.esc_id)} requested${mode}${strategy} motion_confirmed=${confirmed}`,
+          confirmed ? 'ok' : 'info'
+        );
+      } else {
+        pushLog(`${action} ${h.vendor} ${toHex(h.esc_id)} ok`, 'ok');
+      }
       if (action === 'enable' || action === 'disable') {
         const enabled = action === 'enable';
         setControls((prev) => ({
@@ -474,7 +492,24 @@ export async function controlMotorOp({
       payload = { ...payload, loc_kp: kp };
     }
 
-    if (c.mode === 'mit') {
+    if (String(h.vendor) === 'robstride' && c.mode === 'pos_vel_pp') {
+      op = 'pos_vel_pp';
+      payload = {
+        vendor: h.vendor,
+        continuous: false,
+        pos: target,
+        vel_max: vlim,
+        acc_set: acc,
+      };
+    } else if (String(h.vendor) === 'robstride' && c.mode === 'pos_vel_csp') {
+      op = 'pos_vel_csp';
+      payload = {
+        vendor: h.vendor,
+        continuous: false,
+        pos: target,
+        limit_spd: vlim,
+      };
+    } else if (c.mode === 'mit') {
       op = 'mit';
       payload = {
         vendor: h.vendor,
@@ -505,7 +540,17 @@ export async function controlMotorOp({
     const ret = await sendCmd(op, payload, CMD_TIMEOUTS.verifyMs);
     if (!ret.ok) throw new Error(ret.error || `${op} failed`);
 
-    if (c.mode === 'mit') {
+    if (String(h.vendor) === 'robstride' && c.mode === 'pos_vel_pp') {
+      pushLog(
+        `move ${h.vendor} ${toHex(h.esc_id)} mode=pos_vel_pp pos=${target.toFixed(3)} vel_max=${vlim.toFixed(3)} acc_set=${acc.toFixed(3)} ok`,
+        'ok'
+      );
+    } else if (String(h.vendor) === 'robstride' && c.mode === 'pos_vel_csp') {
+      pushLog(
+        `move ${h.vendor} ${toHex(h.esc_id)} mode=pos_vel_csp pos=${target.toFixed(3)} limit_spd=${vlim.toFixed(3)} ok`,
+        'ok'
+      );
+    } else if (c.mode === 'mit') {
       pushLog(
         `move ${h.vendor} ${toHex(h.esc_id)} mode=mit target=${target.toFixed(3)} kp=${kp.toFixed(3)} kd=${kd.toFixed(3)} tau=${tau.toFixed(3)} ok`,
         'ok'

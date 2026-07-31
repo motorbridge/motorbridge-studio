@@ -258,7 +258,8 @@ export const es = {
   ws_token_enabled: 'Habilitar MOTORBRIDGE_WS_TOKEN',
   ws_token: 'MOTORBRIDGE_WS_TOKEN',
   ws_token_placeholder: 'Introduzca el token del ws_gateway remoto',
-  ws_token_required: 'MOTORBRIDGE_WS_TOKEN es obligatorio cuando la autenticación por token está habilitada.',
+  ws_token_required:
+    'MOTORBRIDGE_WS_TOKEN es obligatorio cuando la autenticación por token está habilitada.',
   show_ws_token: 'Mostrar token',
   hide_ws_token: 'Ocultar token',
   websocket_can: 'WebSocket + CAN',
@@ -267,7 +268,19 @@ export const es = {
   log_capabilities_gateway: 'Capacidades WS cargadas desde gateway',
   log_capabilities_fallback: 'Usando capacidades fallback v0.3.5: {{err}}',
   robstride_pos_vel_tip:
-    'RobStride pos_vel se mapea al modo Position nativo. Campos efectivos: target/pos, vlim y kp como loc_kp; vel, kd y tau son ignorados por el gateway.',
+    'El pos_vel antiguo de RobStride es un alias compatible de PP: target se mapea a loc_ref y vlim a vel_max. Usa PP o CSP explícito cuando el gateway lo anuncie.',
+  robstride_mode_pp: 'Posición PP (vel_max + acc_set)',
+  robstride_mode_csp: 'Posición CSP (limit_spd)',
+  robstride_pp_tip:
+    'PP envía loc_ref, vel_max y acc_set como un comando único. Live Move está desactivado porque la velocidad y aceleración PP no deben cambiar durante el movimiento.',
+  robstride_csp_tip:
+    'CSP envía loc_ref y limit_spd. Live Move está disponible para actualizar objetivos de posición continuamente.',
+  robstride_stop_hint:
+    'Solicita una parada controlada según el modo, manteniendo el par. Una respuesta correcta confirma el envío, no que el movimiento ya haya cesado.',
+  robstride_disable_warning:
+    'Deshabilitar elimina el par del motor. Una articulación bajo gravedad puede caer si el brazo no está apoyado.',
+  robstride_stop_disable_warning:
+    'Parar solicita una parada controlada con par; Deshabilitar elimina el par y una articulación bajo gravedad puede caer.',
 
   scan_selected_vendors: 'Escanear fabricantes seleccionados',
   scan_selected: 'Escanear selección',
@@ -331,15 +344,18 @@ export const es = {
   general_target_slider: 'Slider de ángulo objetivo',
   general_target_slider_tip: 'Arrastrar solo cambia el objetivo. Pulsa Mover para enviar.',
   general_target_slider_live_tip:
-    'Modo en vivo ACTIVADO: arrastrar envía comandos pos_vel/force_pos con throttle.',
+    'Modo en vivo ACTIVADO: arrastrar envía comandos pos_vel/pos_vel_csp/force_pos con throttle.',
   general_target_slider_mit_live_disabled:
     'Live Move está deshabilitado en modo MIT por seguridad. Arrastrar solo actualiza el objetivo; pulsa Mover para enviar.',
   general_target_slider_disabled:
-    'El slider solo se habilita en modos de posición: mit / pos_vel / force_pos.',
+    'El slider solo se habilita en modos de posición: mit / pos_vel / pos_vel_pp / pos_vel_csp / force_pos.',
   general_live_move: 'Mover en vivo al arrastrar',
   general_live_move_on: 'Modo en vivo ON',
   general_live_move_off: 'Modo manual',
   vlim: 'Límite vel.',
+  vel_max: 'vel_max',
+  acc_set: 'acc_set',
+  limit_spd: 'limit_spd',
   kp: 'KP',
   kd: 'KD',
   tau: 'TAU',
