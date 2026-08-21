@@ -451,7 +451,6 @@ export function RobotArmPage() {
     resetPoseRobotArm,
     readRobotArmControlParams,
     writeRobotArmControlParams,
-    writeRobstrideParamToAllJoints,
     exportRobstrideParams,
     importRobstrideParams,
   } = useRobotArmContext();
@@ -578,7 +577,6 @@ export function RobotArmPage() {
                         robotArmJointRows={robotArmJointRows}
                         readRobotArmControlParams={readRobotArmControlParams}
                         writeRobotArmControlParams={writeRobotArmControlParams}
-                        writeRobstrideParamToAllJoints={writeRobstrideParamToAllJoints}
                         exportRobstrideParams={exportRobstrideParams}
                         importRobstrideParams={importRobstrideParams}
                         devMode={devMode}

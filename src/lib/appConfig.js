@@ -373,7 +373,7 @@ export const ROBSTRIDE_ARM_PARAM_DEFS = [
     label: 'cur_kp',
     dataType: 'f32',
     range: '[0.0, 3.4E38]',
-    writable: false,
+    writable: true,
     common: true,
     group: 'core',
     defaultValue: '',
@@ -435,6 +435,10 @@ export const ROBSTRIDE_ARM_PARAM_DEFS = [
   // panel can read and write the full high-priority set, not just the subset
   // above.
   {
+    // run_mode is a runtime control command (mode switch), not a tuning
+    // parameter — writing it on an enabled motor can move it. Keep it
+    // read-only in the param table; mode switching belongs to the dedicated
+    // motion controls. The import / apply-template paths still carry it.
     key: 'runMode',
     paramId: 0x7005,
     rid: '0x7005',
@@ -442,7 +446,7 @@ export const ROBSTRIDE_ARM_PARAM_DEFS = [
     label: 'run_mode',
     dataType: 'i8',
     range: '0..5 (0 MIT,1 PP,2 vel,3 current,5 CSP)',
-    writable: true,
+    writable: false,
     common: true,
     group: 'core',
     defaultValue: '',

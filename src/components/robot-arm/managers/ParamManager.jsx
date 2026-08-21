@@ -7,6 +7,7 @@ import {
   REBOT_ARM_DAMIAO_DEFAULT_TEMPLATE,
   REBOT_ARM_ROBSTRIDE_DEFAULT_TEMPLATE,
   armVendorForProfile,
+  buildRobstrideTemplateParsed,
 } from '../../../lib/robotArm';
 import { parseNum } from '../../../lib/utils';
 import { ParamTable } from '../ParamTable';
@@ -20,7 +21,6 @@ export function ParamManager({
   robotArmJointRows,
   readRobotArmControlParams,
   writeRobotArmControlParams,
-  writeRobstrideParamToAllJoints,
   exportRobstrideParams,
   importRobstrideParams,
   devMode,
@@ -278,30 +278,25 @@ export function ParamManager({
       })
     );
 
-    // RobStride: also write+save cur_kp (0x7010) to every online joint, using
-    // each joint's value from the template.
-    if (paramVendor === 'robstride' && writeRobstrideParamToAllJoints) {
-      const curKpDef = paramDefs.find((d) => d.key === 'curKp');
+    // RobStride: reuse the import compare/write/save path against the
+    // in-memory template (no TSV file). buildRobstrideTemplateParsed turns
+    // the template into the same { joints, rows } shape the TSV parser yields,
+    // then importRobstrideParams reads each online joint's current value and
+    // writes only the differing params, storing to Flash when something changed.
+    if (paramVendor === 'robstride' && importRobstrideParams) {
       setParamBusy(true);
       setArmParamOpBusy?.(true);
-      setParamInfo(t('arm_params_writing_cur_kp'));
+      setParamInfo(t('arm_params_import_doing'));
       try {
-        const valuesByJoint = {};
-        for (const jn of Object.keys(template)) {
-          valuesByJoint[Number(jn)] = Number(template[Number(jn)].curKp);
-        }
-        const res = await writeRobstrideParamToAllJoints({
-          paramId: curKpDef?.paramId ?? 0x7010,
-          type: curKpDef?.dataType ?? 'f32',
-          valuesByJoint,
-          store: true,
+        const res = await importRobstrideParams({
+          parsed: buildRobstrideTemplateParsed(template),
           onProgress: setParamProgress,
         });
         if (res?.error) {
           setParamInfo(`${t('arm_params_write_failed')}: ${res.error}`);
         } else {
           setParamInfo(
-            `${t('arm_params_template_applied_robstride')} (0x7010: ${res.okCount}/${res.total})`
+            `${t('arm_params_template_applied_robstride')} (joints=${res.okCount}/${res.total} read=${res.read} written=${res.written} skipped=${res.skipped} saved=${res.saved})`
           );
         }
       } catch (e) {
@@ -320,14 +315,7 @@ export function ParamManager({
           : 'arm_params_template_applied'
       )
     );
-  }, [
-    paramDefs,
-    paramSupported,
-    paramVendor,
-    setArmParamOpBusy,
-    t,
-    writeRobstrideParamToAllJoints,
-  ]);
+  }, [paramSupported, paramVendor, setArmParamOpBusy, t, importRobstrideParams]);
 
   const canWriteParams = React.useMemo(() => {
     if (!paramSupported) return false;

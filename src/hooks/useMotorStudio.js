@@ -478,7 +478,6 @@ export function useMotorStudio() {
       resetPoseRobotArm: robotArmState.resetPoseRobotArm,
       readRobotArmControlParams: robotArmState.readRobotArmControlParams,
       writeRobotArmControlParams: robotArmState.writeRobotArmControlParams,
-      writeRobstrideParamToAllJoints: robotArmState.writeRobstrideParamToAllJoints,
       exportRobstrideParams: robotArmState.exportRobstrideParams,
       importRobstrideParams: robotArmState.importRobstrideParams,
     }),
