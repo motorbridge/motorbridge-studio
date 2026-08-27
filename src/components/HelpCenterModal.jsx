@@ -28,7 +28,10 @@ export function HelpCenterModal({ open, page, onClose }) {
     t('help_troubleshoot_4'),
   ];
   const quickStartItems = [t('help_quick_1'), t('help_quick_2'), t('help_quick_3'), t('help_quick_4')];
-  const canRestartCmd = `alias can_restart='if ip link show can0 >/dev/null 2>&1; then echo "[can_restart] restarting can0"; sudo ip link set can0 down 2>/dev/null || true; sudo ip link set can0 type can bitrate 1000000 restart-ms 100 loopback off 2>/dev/null || sudo ip link set can0 type can bitrate 1000000 loopback off; sudo ip link set can0 up; ip -details link show can0; fi; if ip link show can1 >/dev/null 2>&1; then echo "[can_restart] restarting can1"; sudo ip link set can1 down 2>/dev/null || true; sudo ip link set can1 type can bitrate 1000000 restart-ms 100 loopback off 2>/dev/null || sudo ip link set can1 type can bitrate 1000000 loopback off; sudo ip link set can1 up; ip -details link show can1; fi'
+  const canRestartCmd = `# Bring can0 up at 1 Mbit/s — use this to start the CAN bus.
+sudo ip link set can0 up type can bitrate 1000000
+
+alias can_restart='if ip link show can0 >/dev/null 2>&1; then echo "[can_restart] restarting can0"; sudo ip link set can0 down 2>/dev/null || true; sudo ip link set can0 type can bitrate 1000000 restart-ms 100 loopback off 2>/dev/null || sudo ip link set can0 type can bitrate 1000000 loopback off; sudo ip link set can0 up; ip -details link show can0; fi; if ip link show can1 >/dev/null 2>&1; then echo "[can_restart] restarting can1"; sudo ip link set can1 down 2>/dev/null || true; sudo ip link set can1 type can bitrate 1000000 restart-ms 100 loopback off 2>/dev/null || sudo ip link set can1 type can bitrate 1000000 loopback off; sudo ip link set can1 up; ip -details link show can1; fi'
 
 # After adding it to ~/.bashrc:
 source ~/.bashrc

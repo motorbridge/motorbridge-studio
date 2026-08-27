@@ -104,7 +104,7 @@ export const en = {
   arm_first_use_step_4:
     'After confirming pose is correct, run "Zero All" (multi-step safety confirmations).',
   arm_first_use_step_5:
-    'Then "Read Params" for record; apply the default template and "Write Params" to write the default parameters. If abnormal later, reset to mechanical zero before recalibration.',
+    'Then "Read Params" for record, then "Write Default Params". If abnormal later, reset to mechanical zero before recalibration.',
   arm_prepare_cards: 'Prepare 7 Cards',
   arm_scan_all: 'Scan All Joints',
   arm_auto_detect: 'Auto Detect',
@@ -157,7 +157,7 @@ export const en = {
   arm_params_write_failed: 'Failed to write control parameters',
   arm_params_verify_ok: 'Write-back verification passed.',
   arm_params_verify_mismatch: 'Write-back verification mismatch count',
-  arm_apply_default_template: 'Apply Default Template',
+  arm_apply_default_template: 'Write Default Params',
   arm_export_params: 'Export Params',
   arm_params_export_doing: 'Reading and exporting RS params…',
   arm_params_export_done: 'RS params exported to txt',
@@ -169,6 +169,8 @@ export const en = {
   arm_params_import_done: 'RS params import done',
   arm_params_import_failed: 'RS params import failed',
   arm_import_format_invalid: 'Parameter file format mismatch',
+  arm_import_aborted_offline: 'Import aborted — motor(s) offline (nothing was written):',
+  arm_import_aborted_timeout: 'Import aborted — motor went offline (disabled motors need manual re-enable):',
   arm_demo_btn: 'Demo',
   arm_demo_list: 'Demo List',
   arm_demo_safe_seq: 'J1..J7 Sequence + Return to Zero',
@@ -190,9 +192,9 @@ export const en = {
   arm_dev_mode_hint:
     'Developer mode is on (toggle with Ctrl+D+E+V). Reveals hidden debug buttons and UI; session-only.',
   arm_live_move_failed: 'Live move failed; target synced back from motor state.',
-  arm_params_template_applied: 'Applied reBot Arm Damiao default template (joints 1-6).',
+  arm_params_template_applied: 'Wrote reBot Arm Damiao default params (joints 1-6).',
   arm_params_template_applied_robstride:
-    'Applied reBot Arm RobStride default template (joints 1-7).',
+    'Wrote reBot Arm RobStride default params (joints 1-7).',
   arm_params_writing_cur_kp: 'Writing and saving cur_kp (0x7010) per template...',
   arm_ctrl_mode: 'Control Mode',
   arm_current_bw: 'Current BW',

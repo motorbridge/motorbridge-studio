@@ -103,7 +103,7 @@ export const es = {
   arm_first_use_step_4:
     'Tras confirmar postura correcta, ejecute "Calibrar cero todas" (con confirmaciones).',
   arm_first_use_step_5:
-    'Después, use "Leer parámetros" para registrar; luego aplique la plantilla predeterminada y "Escribir parámetros" para escribir los parámetros predeterminados. Si hay anomalías después, vuelva al cero mecánico antes de recalibrar.',
+    'Después, use "Leer parámetros" para registrar, luego "Escribir parámetros predeterminados". Si hay anomalías después, vuelva al cero mecánico antes de recalibrar.',
   arm_prepare_cards: 'Preparar 7 tarjetas',
   arm_scan_all: 'Escanear todas',
   arm_auto_detect: 'Detectar auto.',
@@ -159,7 +159,7 @@ export const es = {
   arm_params_write_failed: 'Error al escribir parámetros',
   arm_params_verify_ok: 'Verificación de relectura correcta.',
   arm_params_verify_mismatch: 'Cantidad de diferencias tras relectura',
-  arm_apply_default_template: 'Aplicar plantilla por defecto',
+  arm_apply_default_template: 'Escribir parámetros predeterminados',
   arm_export_params: 'Exportar parámetros',
   arm_params_export_doing: 'Leyendo y exportando parámetros RS…',
   arm_params_export_done: 'Parámetros RS exportados a txt',
@@ -171,6 +171,8 @@ export const es = {
   arm_params_import_done: 'Parámetros RS importados',
   arm_params_import_failed: 'Error al importar parámetros RS',
   arm_import_format_invalid: 'Formato de archivo de parámetros no válido',
+  arm_import_aborted_offline: 'Importación cancelada — motor(es) desconectado(s) (no se escribió nada):',
+  arm_import_aborted_timeout: 'Importación cancelada — el motor se desconectó (los motores deshabilitados requieren re-enable manual):',
   arm_demo_btn: 'Demo',
   arm_demo_list: 'Lista Demo',
   arm_demo_safe_seq: 'Secuencia J1..J7 + vuelta a cero',
@@ -195,9 +197,9 @@ export const es = {
   arm_live_move_failed:
     'Falló el movimiento en vivo; objetivo sincronizado desde el estado del motor.',
   arm_params_template_applied:
-    'Plantilla por defecto de reBot Arm Damiao aplicada (articulaciones 1-6).',
+    'Parámetros predeterminados de reBot Arm Damiao escritos (articulaciones 1-6).',
   arm_params_template_applied_robstride:
-    'Plantilla por defecto de reBot Arm RobStride aplicada (articulaciones 1-7).',
+    'Parámetros predeterminados de reBot Arm RobStride escritos (articulaciones 1-7).',
   arm_params_writing_cur_kp: 'Escribiendo y guardando cur_kp (0x7010) según plantilla...',
   arm_ctrl_mode: 'Modo de control',
   arm_current_bw: 'BW corriente',

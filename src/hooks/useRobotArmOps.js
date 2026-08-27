@@ -14,6 +14,24 @@ import { armVendorForProfile } from '../lib/robotArm';
 import { defaultControlsForHit, getResponseValue, motorKey } from '../lib/utils';
 import { useRobotArmStudio } from './useRobotArmStudio';
 
+// Matches errors that indicate the motor is no longer reachable on the bus
+// (gateway command timeout, no CAN ack, or the ws link itself dropped). Used
+// by importRobstrideParams to abort early and name the offending motor.
+const isOfflineTimeout = (err) => {
+  const msg = String(err?.message || err || '');
+  return /timeout|timed[-\s]?out|no (?:response|ack|reply)|ws not connected/i.test(msg);
+};
+
+// Tagged error thrown from inside the import loop to break out across the
+// nested try/catch blocks. Carries the identity of the motor that dropped.
+class ImportAbort extends Error {
+  constructor(payload) {
+    super(payload?.message || 'import aborted');
+    this.name = 'ImportAbort';
+    this.aborted = payload;
+  }
+}
+
 export function useRobotArmOps({
   connected,
   vendors,
@@ -398,8 +416,20 @@ export function useRobotArmOps({
   const disableAllRobotArm = async () =>
     runRobotArmBulk('disable-all', async () => {
       pushLog('robot-arm disable-all start', 'info');
+      // Skip joints already known to be offline: sending a disable frame to a
+      // motor that isn't there just burns a full controlMs (6s) timeout each.
+      const onlineRows = robotArmJointRows.filter((r) => r?.hit?.online);
+      const offlineRows = robotArmJointRows.filter((r) => !r?.hit?.online);
+      if (offlineRows.length > 0) {
+        pushLog(
+          `robot-arm disable-all skip ${offlineRows.length} offline joint(s): ${offlineRows
+            .map((r) => `J${r.joint}`)
+            .join(', ')}`,
+          'info'
+        );
+      }
       const { okCount, failCount } = await bulkOp(
-        robotArmJointRows,
+        onlineRows,
         (row) => controlMotor(row.hit, 'disable', null, { allowDuringBulk: true }),
         60
       );
@@ -746,6 +776,29 @@ export function useRobotArmOps({
       return { error: 'no matching joints', errors: fileErrors };
     }
 
+    const hex = (id) => `0x${id.toString(16).padStart(4, '0')}`;
+    const describeHit = (joint, h) => `J${joint} esc=${hex(h.esc_id)} mst=${hex(h.mst_id)}`;
+
+    // Pre-check: any joint already offline at start → abort immediately,
+    // before disabling or writing anything. List every offline joint so the
+    // operator knows exactly what to fix; nothing is written.
+    const offlineAtStart = jointsToImport
+      .map((j) => ({ joint: j, row: byJoint.get(j) }))
+      .filter(({ row }) => !row?.hit?.online);
+    if (offlineAtStart.length > 0) {
+      const joints = offlineAtStart.map(({ joint, row }) => describeHit(joint, row.hit));
+      pushLog(`robot-arm import aborted: offline at start: ${joints.join(', ')}`, 'err');
+      return {
+        aborted: { reason: 'offline_at_start', joints },
+        total: jointsToImport.length,
+        okCount: 0,
+        read: 0,
+        written: 0,
+        skipped: 0,
+        saved: 0,
+      };
+    }
+
     // Disable every arm motor before touching any parameter. Writing
     // run_mode (0x7005) and other runtime quantities to an enabled motor can
     // move it or be silently ignored by some RobStride firmware variants
@@ -760,13 +813,13 @@ export function useRobotArmOps({
     }
 
     const total = jointsToImport.length;
-    const hex = (id) => `0x${id.toString(16).padStart(4, '0')}`;
     onProgress?.({ active: true, done: 0, total, label: 'importing params...', percent: 0 });
 
     const result = {};
     const writtenLog = []; // { joint, paramId, name, from, to }
     let done = 0;
-    for (const joint of jointsToImport) {
+    let aborted = null;
+    jointLoop: for (const joint of jointsToImport) {
       const row = byJoint.get(joint);
       const h = row.hit;
       const online = Boolean(h?.online);
@@ -794,11 +847,32 @@ export function useRobotArmOps({
               if (rret?.ok) {
                 cur = Number(getResponseValue(rret));
               } else {
+                // Motor just dropped (gateway replied with a timeout/no-ack
+                // failure): abort the whole import and name this motor.
+                if (isOfflineTimeout(rret?.error)) {
+                  throw new ImportAbort({
+                    reason: 'timeout',
+                    stage: 'read',
+                    motor: describeHit(joint, h),
+                    param: def.name,
+                    message: rret?.error || 'read failed',
+                  });
+                }
                 tally.errors.push(`${def.name} read: ${rret?.error || 'failed'}`);
                 tally.read += 1;
                 continue;
               }
             } catch (e) {
+              if (e instanceof ImportAbort) throw e;
+              if (isOfflineTimeout(e)) {
+                throw new ImportAbort({
+                  reason: 'timeout',
+                  stage: 'read',
+                  motor: describeHit(joint, h),
+                  param: def.name,
+                  message: e.message || String(e),
+                });
+              }
               tally.errors.push(`${def.name} read: ${e.message || e}`);
               continue;
             }
@@ -825,6 +899,16 @@ export function useRobotArmOps({
                 'info'
               );
             } catch (e) {
+              if (e instanceof ImportAbort) throw e;
+              if (isOfflineTimeout(e)) {
+                throw new ImportAbort({
+                  reason: 'timeout',
+                  stage: 'write',
+                  motor: describeHit(joint, h),
+                  param: def.name,
+                  message: e.message || String(e),
+                });
+              }
               tally.errors.push(`${def.name} write: ${e.message || e}`);
             }
           }
@@ -844,11 +928,28 @@ export function useRobotArmOps({
               tally.saved += 1;
               pushLog(`robot-arm import J${joint} stored ${tally.written} param(s)`, 'ok');
             } catch (e) {
+              if (e instanceof ImportAbort) throw e;
+              if (isOfflineTimeout(e)) {
+                throw new ImportAbort({
+                  reason: 'timeout',
+                  stage: 'store',
+                  motor: describeHit(joint, h),
+                  param: 'store_parameters',
+                  message: e.message || String(e),
+                });
+              }
               tally.errors.push(`store: ${e.message || e}`);
               pushLog(`robot-arm import J${joint} store failed: ${e.message || e}`, 'err');
             }
           }
         } catch (e) {
+          if (e instanceof ImportAbort) {
+            // A motor dropped mid-import (read/write/store timed out). Capture
+            // which one and break out of the joint loop; the finally still
+            // closes the bus before we leave.
+            aborted = e.aborted;
+            break jointLoop;
+          }
           const busError = e.message || String(e);
           tally.errors.push(`bus: ${busError}`);
         } finally {
@@ -867,7 +968,13 @@ export function useRobotArmOps({
       });
       await sleep(10);
     }
-    onProgress?.({ active: false, done: total, total, label: 'import done', percent: 100 });
+    onProgress?.({
+      active: false,
+      done: total,
+      total,
+      label: aborted ? 'import aborted' : 'import done',
+      percent: aborted ? Math.floor((done / total) * 100) : 100,
+    });
 
     const readTotal = Object.values(result).reduce((s, x) => s + x.read, 0);
     const writtenTotal = Object.values(result).reduce((s, x) => s + x.written, 0);
@@ -888,10 +995,19 @@ export function useRobotArmOps({
         .join(' ');
       pushLog(`robot-arm import written ${writtenTotal} cell(s): ${detail}`, 'ok');
     }
-    pushLog(
-      `robot-arm import params done joints=${okCount}/${total} read=${readTotal} written=${writtenTotal} skipped=${skippedTotal} saved=${savedTotal}`,
-      okCount === total ? 'ok' : 'err'
-    );
+    if (aborted) {
+      pushLog(
+        `robot-arm import aborted at ${aborted.motor} (${aborted.stage}${
+          aborted.param ? `:${aborted.param}` : ''
+        }): ${aborted.message}. ${okCount}/${total} joint(s) completed before abort.`,
+        'err'
+      );
+    } else {
+      pushLog(
+        `robot-arm import params done joints=${okCount}/${total} read=${readTotal} written=${writtenTotal} skipped=${skippedTotal} saved=${savedTotal}`,
+        okCount === total ? 'ok' : 'err'
+      );
+    }
     return {
       okCount,
       total,
@@ -901,6 +1017,7 @@ export function useRobotArmOps({
       saved: savedTotal,
       writtenLog,
       result,
+      aborted,
     };
   };
 

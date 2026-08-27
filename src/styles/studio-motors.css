@@ -852,6 +852,8 @@
 .armDialogCard h3 {
   margin: 0 0 10px;
   color: #203764;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .armDialogCard p {
@@ -871,7 +873,7 @@
   background: #fff5f5;
   color: #8a2b2b;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;

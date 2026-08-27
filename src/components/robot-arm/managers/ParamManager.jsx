@@ -36,7 +36,7 @@ export function ParamManager({
   const [paramBusy, setParamBusy] = React.useState(false);
   const [paramRows, setParamRows] = React.useState([]);
   const [paramInfo, setParamInfo] = React.useState('');
-  const [importAlert, setImportAlert] = React.useState({ open: false, message: '' });
+  const [importAlert, setImportAlert] = React.useState({ open: false, title: '', message: '' });
   const [paramProgress, setParamProgress] = React.useState({
     active: false,
     done: 0,
@@ -45,6 +45,32 @@ export function ParamManager({
     percent: 0,
   });
   const paramVendor = armVendorForProfile(robotArmModel);
+
+  // Shared handler for an import/template run aborted because a motor went
+  // offline (either already offline at start, or it dropped mid-read/write).
+  // Pops the existing importAlert modal with an "offline / aborted" title and
+  // a body listing only the joint IDs that dropped (e.g. "J1, J3"). The
+  // detailed esc/mst feedback IDs stay in the event log, not the modal.
+  const showImportAbortAlert = React.useCallback(
+    (res) => {
+      const ab = res?.aborted;
+      if (!ab) return;
+      // describeHit yields "J<n> esc=0x… mst=0x…"; the modal only needs the
+      // joint token so the operator sees which motor to check, not bus IDs.
+      const jointId = (s) => String(s || '').split(/\s+/)[0] || String(s || '');
+      const list = ab.joints
+        ? ab.joints.map(jointId).filter(Boolean).join(', ')
+        : jointId(ab.motor);
+      const key =
+        ab.reason === 'offline_at_start'
+          ? 'arm_import_aborted_offline'
+          : 'arm_import_aborted_timeout';
+      setImportAlert({ open: true, title: t(key), message: list });
+      setParamInfo(`${t('arm_params_import_failed')}: ${t(key)}`);
+    },
+    [t]
+  );
+
   const paramDefs = React.useMemo(
     () => (paramVendor === 'robstride' ? ROBSTRIDE_ARM_PARAM_DEFS : DAMIAO_ARM_PARAM_DEFS),
     [paramVendor]
@@ -292,6 +318,10 @@ export function ParamManager({
           parsed: buildRobstrideTemplateParsed(template),
           onProgress: setParamProgress,
         });
+        if (res?.aborted) {
+          showImportAbortAlert(res);
+          return;
+        }
         if (res?.error) {
           setParamInfo(`${t('arm_params_write_failed')}: ${res.error}`);
         } else {
@@ -315,7 +345,14 @@ export function ParamManager({
           : 'arm_params_template_applied'
       )
     );
-  }, [paramSupported, paramVendor, setArmParamOpBusy, t, importRobstrideParams]);
+  }, [
+    paramSupported,
+    paramVendor,
+    setArmParamOpBusy,
+    t,
+    importRobstrideParams,
+    showImportAbortAlert,
+  ]);
 
   const canWriteParams = React.useMemo(() => {
     if (!paramSupported) return false;
@@ -363,13 +400,21 @@ export function ParamManager({
       setParamInfo(t('arm_params_import_doing'));
       try {
         const res = await importRobstrideParams({ file, onProgress: setParamProgress });
+        if (res?.aborted) {
+          showImportAbortAlert(res);
+          return;
+        }
         if (res?.error === 'format invalid') {
           // Format mismatch: pop up a modal listing the parser's errors so the
           // operator can fix the file; nothing was written to any motor.
           const detail = res.errors?.length
             ? res.errors.join('\n')
             : t('arm_import_format_invalid');
-          setImportAlert({ open: true, message: detail });
+          setImportAlert({
+            open: true,
+            title: t('arm_import_format_invalid'),
+            message: detail,
+          });
           setParamInfo(`${t('arm_params_import_failed')}: ${t('arm_import_format_invalid')}`);
         } else if (res?.error) {
           const detail = res.errors?.length ? res.errors.slice(0, 3).join('; ') : res.error;
@@ -386,7 +431,7 @@ export function ParamManager({
         setParamBusy(false);
       }
     },
-    [importRobstrideParams, paramVendor, setArmParamOpBusy, t]
+    [importRobstrideParams, paramVendor, setArmParamOpBusy, t, showImportAbortAlert]
   );
 
   const manager = {
@@ -445,7 +490,7 @@ export function ParamManager({
               onClick={() => setImportAlert((prev) => ({ ...prev, open: false }))}
             >
               <div className="armDialogCard" onClick={(e) => e.stopPropagation()}>
-                <h3>{t('arm_import_format_invalid')}</h3>
+                <h3>{importAlert.title || t('arm_import_format_invalid')}</h3>
                 <pre className="armImportAlertDetail">{importAlert.message}</pre>
                 <div className="row toolbar compactToolbar">
                   <button

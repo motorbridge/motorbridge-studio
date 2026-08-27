@@ -413,7 +413,15 @@ export async function controlMotorOp({
   const ratio = parseNum(c.ratio, 0.1);
 
   try {
-    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
+    // Disable/stop/clear_error are transient one-shot commands; they don't
+    // need state/param streams or the 0x7026 report-period write that
+    // setTargetFor does by default. Skipping it avoids ~500ms-3s of wasted
+    // bus time per offline motor during disable-all (the import preamble).
+    const streamOpt =
+      action === 'disable' || action === 'stop' || action === 'clear_error'
+        ? { enableStreams: false }
+        : {};
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id, streamOpt);
     if (typeof shouldCancel === 'function' && shouldCancel()) return false;
 
     if (
