@@ -8,6 +8,7 @@ import {
   REBOT_ARM_ROBSTRIDE_DEFAULT_TEMPLATE,
   armVendorForProfile,
   buildRobstrideTemplateParsed,
+  buildDamiaoTemplateParsed,
 } from '../../../lib/robotArm';
 import { parseNum } from '../../../lib/utils';
 import { ParamTable } from '../ParamTable';
@@ -21,8 +22,8 @@ export function ParamManager({
   robotArmJointRows,
   readRobotArmControlParams,
   writeRobotArmControlParams,
-  exportRobstrideParams,
-  importRobstrideParams,
+  exportArmParams,
+  importArmParams,
   devMode,
   sendCmd,
   setArmParamOpBusy,
@@ -61,12 +62,17 @@ export function ParamManager({
       const list = ab.joints
         ? ab.joints.map(jointId).filter(Boolean).join(', ')
         : jointId(ab.motor);
-      const key =
+      const kind = ab.kind === 'export' ? 'export' : 'import';
+      const reasonKey =
         ab.reason === 'offline_at_start'
-          ? 'arm_import_aborted_offline'
-          : 'arm_import_aborted_timeout';
+          ? 'offline'
+          : ab.reason === 'all_failed'
+            ? 'all_failed'
+            : 'timeout';
+      const key = `arm_${kind}_aborted_${reasonKey}`;
+      const failedKey = kind === 'export' ? 'arm_params_export_failed' : 'arm_params_import_failed';
       setImportAlert({ open: true, title: t(key), message: list });
-      setParamInfo(`${t('arm_params_import_failed')}: ${t(key)}`);
+      setParamInfo(`${t(failedKey)}: ${t(key)}`);
     },
     [t]
   );
@@ -304,20 +310,21 @@ export function ParamManager({
       })
     );
 
-    // RobStride: reuse the import compare/write/save path against the
-    // in-memory template (no TSV file). buildRobstrideTemplateParsed turns
-    // the template into the same { joints, rows } shape the TSV parser yields,
-    // then importRobstrideParams reads each online joint's current value and
+    // Reuse the shared import compare/write/save path against the in-memory
+    // template (no TSV file). build*TemplateParsed turns the template into the
+    // same { joints, rows } shape the TSV parser yields, then importArmParams
+    // (vendor-branched internally) reads each online joint's current value and
     // writes only the differing params, storing to Flash when something changed.
-    if (paramVendor === 'robstride' && importRobstrideParams) {
+    if (importArmParams) {
       setParamBusy(true);
       setArmParamOpBusy?.(true);
       setParamInfo(t('arm_params_import_doing'));
       try {
-        const res = await importRobstrideParams({
-          parsed: buildRobstrideTemplateParsed(template),
-          onProgress: setParamProgress,
-        });
+        const parsed =
+          paramVendor === 'robstride'
+            ? buildRobstrideTemplateParsed(template)
+            : buildDamiaoTemplateParsed(template);
+        const res = await importArmParams({ parsed, onProgress: setParamProgress });
         if (res?.aborted) {
           showImportAbortAlert(res);
           return;
@@ -325,8 +332,12 @@ export function ParamManager({
         if (res?.error) {
           setParamInfo(`${t('arm_params_write_failed')}: ${res.error}`);
         } else {
+          const appliedKey =
+            paramVendor === 'robstride'
+              ? 'arm_params_template_applied_robstride'
+              : 'arm_params_template_applied';
           setParamInfo(
-            `${t('arm_params_template_applied_robstride')} (joints=${res.okCount}/${res.total} read=${res.read} written=${res.written} skipped=${res.skipped} saved=${res.saved})`
+            `${t(appliedKey)} (joints=${res.okCount}/${res.total} read=${res.read} written=${res.written} skipped=${res.skipped} saved=${res.saved})`
           );
         }
       } catch (e) {
@@ -345,14 +356,7 @@ export function ParamManager({
           : 'arm_params_template_applied'
       )
     );
-  }, [
-    paramSupported,
-    paramVendor,
-    setArmParamOpBusy,
-    t,
-    importRobstrideParams,
-    showImportAbortAlert,
-  ]);
+  }, [paramSupported, paramVendor, setArmParamOpBusy, t, importArmParams, showImportAbortAlert]);
 
   const canWriteParams = React.useMemo(() => {
     if (!paramSupported) return false;
@@ -365,7 +369,7 @@ export function ParamManager({
 
   const exportParams = React.useCallback(async () => {
     setParamPanelOpen(true);
-    if (paramVendor !== 'robstride' || !exportRobstrideParams) {
+    if (!exportArmParams) {
       setParamInfo(t('arm_params_vendor_unsupported'));
       return;
     }
@@ -373,7 +377,11 @@ export function ParamManager({
     setArmParamOpBusy?.(true);
     setParamInfo(t('arm_params_export_doing'));
     try {
-      const res = await exportRobstrideParams({ onProgress: setParamProgress });
+      const res = await exportArmParams({ onProgress: setParamProgress });
+      if (res?.aborted) {
+        showImportAbortAlert(res);
+        return;
+      }
       if (res?.error) {
         setParamInfo(`${t('arm_params_export_failed')}: ${res.error}`);
       } else {
@@ -385,12 +393,12 @@ export function ParamManager({
       setArmParamOpBusy?.(false);
       setParamBusy(false);
     }
-  }, [exportRobstrideParams, paramVendor, setArmParamOpBusy, t]);
+  }, [exportArmParams, setArmParamOpBusy, t, showImportAbortAlert]);
 
   const importParams = React.useCallback(
     async (file) => {
       setParamPanelOpen(true);
-      if (paramVendor !== 'robstride' || !importRobstrideParams) {
+      if (!importArmParams) {
         setParamInfo(t('arm_params_vendor_unsupported'));
         return;
       }
@@ -399,7 +407,7 @@ export function ParamManager({
       setArmParamOpBusy?.(true);
       setParamInfo(t('arm_params_import_doing'));
       try {
-        const res = await importRobstrideParams({ file, onProgress: setParamProgress });
+        const res = await importArmParams({ file, onProgress: setParamProgress });
         if (res?.aborted) {
           showImportAbortAlert(res);
           return;
@@ -431,7 +439,7 @@ export function ParamManager({
         setParamBusy(false);
       }
     },
-    [importRobstrideParams, paramVendor, setArmParamOpBusy, t, showImportAbortAlert]
+    [importArmParams, setArmParamOpBusy, t, showImportAbortAlert]
   );
 
   const manager = {

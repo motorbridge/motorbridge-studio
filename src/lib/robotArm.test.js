@@ -3,7 +3,10 @@ import {
   REBOT_ARM_JOINT_LIMITS,
   REBOT_ARM_ROBSTRIDE_JOINT_LIMITS,
   REBOT_ARM_ROBSTRIDE_DEFAULT_TEMPLATE,
+  REBOT_ARM_DAMIAO_DEFAULT_TEMPLATE,
   ROBSTRIDE_TEMPLATE_PARAM_IDS,
+  DAMIAO_TEMPLATE_PARAM_RIDS,
+  buildDamiaoTemplateParsed,
   jointLimitsForProfile,
   normalizeRobotArmModel,
 } from './robotArm';
@@ -62,5 +65,37 @@ describe('robotArm config', () => {
         expect(Number(tpl[field])).not.toBeNaN();
       }
     }
+  });
+
+  it('maps all 21 writable non-identity DM template params and excludes identity', () => {
+    const rids = Object.values(DAMIAO_TEMPLATE_PARAM_RIDS);
+    expect(rids).toHaveLength(21);
+    // All writable non-identity rids (core + limits + advanced) are present.
+    for (const rid of [
+      10, 24, 25, 26, 27, 28, 0, 2, 3, 6, 21, 22, 23, 4, 5, 29, 30, 31, 32, 33, 34,
+    ]) {
+      expect(rids).toContain(rid);
+    }
+    // Identity params (mstId/escId/timeout/canBr) must not be in the template.
+    for (const rid of [7, 8, 9, 35]) {
+      expect(rids).not.toContain(rid);
+    }
+  });
+
+  it('builds a DM template parsed plan that carries ctrlMode for every joint', () => {
+    const parsed = buildDamiaoTemplateParsed(REBOT_ARM_DAMIAO_DEFAULT_TEMPLATE);
+    expect(parsed.joints).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    const rids = parsed.rows.map((r) => r.rid);
+    expect(rids).toContain(10); // ctrlMode
+    expect(rids).toContain(24); // currentBw
+    expect(rids).toHaveLength(21); // full writable non-identity snapshot
+    // Identity params never reach the parsed plan.
+    expect(rids).not.toContain(7);
+    expect(rids).not.toContain(8);
+    expect(rids).not.toContain(9);
+    expect(rids).not.toContain(35);
+    const ctrl = parsed.rows.find((r) => r.rid === 10);
+    expect(ctrl.values[1]).toBe(2); // ctrlMode defaults to 2 (pos_vel)
+    expect(ctrl.values[7]).toBe(2);
   });
 });

@@ -72,7 +72,6 @@ function RobotArmToolbar({
   exportParams,
   importParams,
   paramSupported,
-  paramVendor,
   runDemo,
   stopDemo,
   demoAction,
@@ -145,7 +144,7 @@ function RobotArmToolbar({
         >
           {t('arm_apply_default_template')}
         </button>
-        {paramVendor === 'robstride' && (
+        {paramSupported && (
           <button
             disabled={!canAction || armToolbarBusy || !paramSupported}
             onClick={exportParams}
@@ -154,7 +153,7 @@ function RobotArmToolbar({
             {t('arm_export_params')}
           </button>
         )}
-        {paramVendor === 'robstride' && (
+        {paramSupported && (
           <>
             <button
               disabled={!canAction || armToolbarBusy || !paramSupported}
@@ -451,8 +450,8 @@ export function RobotArmPage() {
     resetPoseRobotArm,
     readRobotArmControlParams,
     writeRobotArmControlParams,
-    exportRobstrideParams,
-    importRobstrideParams,
+    exportArmParams,
+    importArmParams,
   } = useRobotArmContext();
   const [activeJointKey, setActiveJointKey] = React.useState('');
   const [limitWarn, setLimitWarn] = React.useState('');
@@ -577,8 +576,8 @@ export function RobotArmPage() {
                         robotArmJointRows={robotArmJointRows}
                         readRobotArmControlParams={readRobotArmControlParams}
                         writeRobotArmControlParams={writeRobotArmControlParams}
-                        exportRobstrideParams={exportRobstrideParams}
-                        importRobstrideParams={importRobstrideParams}
+                        exportArmParams={exportArmParams}
+                        importArmParams={importArmParams}
                         devMode={devMode}
                         sendCmd={sendCmd}
                         setArmParamOpBusy={setArmParamOpBusy}
@@ -634,7 +633,6 @@ export function RobotArmPage() {
                                 exportParams={params.exportParams}
                                 importParams={params.importParams}
                                 paramSupported={params.paramSupported}
-                                paramVendor={params.paramVendor}
                                 runDemo={sequence.runDemo}
                                 stopDemo={sequence.stopDemo}
                                 demoAction={sequence.demoAction}

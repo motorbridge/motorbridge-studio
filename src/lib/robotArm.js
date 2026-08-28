@@ -3,6 +3,7 @@ import {
   canRobstrideWrite,
   toRobstrideCliType,
 } from './robstrideParamCatalog';
+import { DAMIAO_ARM_PARAM_DEFS } from './appConfig';
 
 export const ROBOT_ARM_MODELS = [
   { key: 'rebot-arm-damiao', label: 'rebot-arm-damiao' },
@@ -41,35 +42,53 @@ export const ROBOT_ARM_JOINTS = [
   { joint: 7, esc_id: 0x07 },
 ];
 
+// DM arm default parameter snapshot — covers all 21 writable non-identity
+// params (core + limits + advanced): the same set the TSV export emits, so
+// apply-default-template restores a full known-good snapshot instead of only
+// the 6 core gains. Values are taken verbatim from the arm's read-back export.
+// Joints split into two groups — proximal (1-3) and distal (4-7) — differing
+// only in velKp / vmax / tmax. Identity params (mstId/escId/timeout/canBr) are
+// NOT in the template; buildDamiaoTemplateParsed filters them as a backstop.
+const _DAMIAO_TEMPLATE_BASE = {
+  ctrlMode: '2',
+  currentBw: '1000',
+  velKi: '0.0020000000949949026',
+  posKp: '54',
+  posKi: '0',
+  uvValue: '15',
+  otValue: '100',
+  ocValue: '0.800000011920929',
+  maxSpd: '600',
+  pmax: '12.5',
+  acc: '2',
+  dec: '-2',
+  ovValue: '32',
+  gref: '1',
+  deta: '4',
+  vBw: '40',
+  iqC1: '2500',
+  vlC1: '500',
+};
+const _DAMIAO_TEMPLATE_PROXIMAL = {
+  ..._DAMIAO_TEMPLATE_BASE,
+  velKp: '0.0038399999029934406',
+  vmax: '10',
+  tmax: '28',
+};
+const _DAMIAO_TEMPLATE_DISTAL = {
+  ..._DAMIAO_TEMPLATE_BASE,
+  velKp: '0.003719999920576811',
+  vmax: '30',
+  tmax: '10',
+};
 export const REBOT_ARM_DAMIAO_DEFAULT_TEMPLATE = {
-  1: {
-    ctrlMode: '2',
-    currentBw: '1000',
-    velKp: '0.0125',
-    velKi: '0.004',
-    posKp: '150',
-    posKi: '0.5',
-  },
-  2: {
-    ctrlMode: '2',
-    currentBw: '1000',
-    velKp: '0.013',
-    velKi: '0.004',
-    posKp: '200',
-    posKi: '10',
-  },
-  3: {
-    ctrlMode: '2',
-    currentBw: '1000',
-    velKp: '0.013',
-    velKi: '0.004',
-    posKp: '200',
-    posKi: '10',
-  },
-  4: { ctrlMode: '2', currentBw: '1000', velKp: '0.0008', velKi: '0.002', posKp: '50', posKi: '1' },
-  5: { ctrlMode: '2', currentBw: '1000', velKp: '0.0008', velKi: '0.002', posKp: '50', posKi: '1' },
-  6: { ctrlMode: '2', currentBw: '1000', velKp: '0.0008', velKi: '0.002', posKp: '50', posKi: '1' },
-  7: { ctrlMode: '2', currentBw: '1000', velKp: '0.0008', velKi: '0.002', posKp: '50', posKi: '1' },
+  1: { ..._DAMIAO_TEMPLATE_PROXIMAL },
+  2: { ..._DAMIAO_TEMPLATE_PROXIMAL },
+  3: { ..._DAMIAO_TEMPLATE_PROXIMAL },
+  4: { ..._DAMIAO_TEMPLATE_DISTAL },
+  5: { ..._DAMIAO_TEMPLATE_DISTAL },
+  6: { ..._DAMIAO_TEMPLATE_DISTAL },
+  7: { ..._DAMIAO_TEMPLATE_DISTAL },
 };
 
 // Maps each RobStride default-template field name to its runtime param id,
@@ -320,6 +339,77 @@ export function buildRobstrideTemplateParsed(template) {
       def: catDef,
       paramId,
       type: toRobstrideCliType(catDef.dataType),
+      values,
+    });
+  }
+  return { joints, rows };
+}
+
+// Maps each Damiao default-template field name to its register rid, so
+// buildDamiaoTemplateParsed can build the { joints, rows } structure straight
+// from the template without the TSV parser. Covers ALL 21 writable non-identity
+// params (core + limits + advanced) the DM default template carries — the same
+// set exportArmParams emits, so apply-default-template restores a full snapshot.
+// The four identity params (mstId/escId/timeout/canBr) are deliberately
+// excluded: writing them would change the motor's CAN address and drop it off
+// the bus, so apply-default-template must never touch them.
+export const DAMIAO_TEMPLATE_PARAM_RIDS = {
+  // core
+  ctrlMode: 10,
+  currentBw: 24,
+  velKp: 25,
+  velKi: 26,
+  posKp: 27,
+  posKi: 28,
+  // limits
+  uvValue: 0,
+  otValue: 2,
+  ocValue: 3,
+  maxSpd: 6,
+  pmax: 21,
+  vmax: 22,
+  tmax: 23,
+  // advanced
+  acc: 4,
+  dec: 5,
+  ovValue: 29,
+  gref: 30,
+  deta: 31,
+  vBw: 32,
+  iqC1: 33,
+  vlC1: 34,
+};
+
+// Turn a DM default template into the same { joints, rows } shape the TSV parser
+// yields, so apply-default-template reuses importArmParams without a file.
+// Mirrors buildRobstrideTemplateParsed: only params the template actually
+// carries numeric values for are included, and identity / non-writable params
+// are filtered out as a belt-and-suspenders guard (the template map already
+// excludes them, but this keeps a future expanded template safe too).
+export function buildDamiaoTemplateParsed(template) {
+  const joints = Object.keys(template || {})
+    .map((n) => Number(n))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => a - b);
+  const rows = [];
+  for (const [field, rid] of Object.entries(DAMIAO_TEMPLATE_PARAM_RIDS)) {
+    const values = {};
+    for (const joint of joints) {
+      const tpl = template[joint];
+      if (!tpl) continue;
+      const raw = tpl[field];
+      if (raw == null || String(raw).trim() === '') continue;
+      const num = Number(raw);
+      if (!Number.isFinite(num)) continue;
+      values[joint] = num;
+    }
+    if (Object.keys(values).length === 0) continue;
+    const def = DAMIAO_ARM_PARAM_DEFS.find((d) => d.rid === rid);
+    if (!def || def.writable === false || def.group === 'identity') continue;
+    rows.push({
+      def,
+      rid,
+      type: def.dataType === 'u32' ? 'u32' : 'f32',
       values,
     });
   }

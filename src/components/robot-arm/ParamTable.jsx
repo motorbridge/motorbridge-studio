@@ -100,7 +100,7 @@ export function ParamTable({
         >
           {t('arm_apply_default_template')}
         </button>
-        {paramVendor === 'robstride' && (
+        {paramSupported && (
           <button
             disabled={!canAction || armToolbarBusy || !paramSupported}
             onClick={exportParams}
@@ -109,7 +109,7 @@ export function ParamTable({
             {t('arm_export_params')}
           </button>
         )}
-        {paramVendor === 'robstride' && (
+        {paramSupported && (
           <>
             <button
               disabled={!canAction || armToolbarBusy || paramBusy || !paramSupported}

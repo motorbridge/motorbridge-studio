@@ -10,13 +10,14 @@ import {
   parseRobstrideParamsTsv,
   ROBSTRIDE_PARAM_CATALOG,
 } from '../lib/robstrideParamCatalog';
+import { damiaoParamPriority, parseDamiaoParamsTsv } from '../lib/damiaoParamCatalog';
 import { armVendorForProfile } from '../lib/robotArm';
 import { defaultControlsForHit, getResponseValue, motorKey } from '../lib/utils';
 import { useRobotArmStudio } from './useRobotArmStudio';
 
 // Matches errors that indicate the motor is no longer reachable on the bus
 // (gateway command timeout, no CAN ack, or the ws link itself dropped). Used
-// by importRobstrideParams to abort early and name the offending motor.
+// by importArmParams to abort early and name the offending motor.
 const isOfflineTimeout = (err) => {
   const msg = String(err?.message || err || '');
   return /timeout|timed[-\s]?out|no (?:response|ack|reply)|ws not connected/i.test(msg);
@@ -582,65 +583,135 @@ export function useRobotArmOps({
     }
   };
 
-  // Read every writable RobStride parameter (0x7005..0x702E, access rw —
-  // read-only params like mechPos/VBUS are excluded so the file is a clean
-  // import source) from each arm joint (all joints, including offline ones)
-  // and download the result as a tab-separated .txt: columns are joints
-  // (J1..J7), rows are registers (param_id / type / name / access), cells are
-  // raw values. If the gateway cannot read an individual param, that cell is
-  // recorded as "ERR" and the rest of the joint's params are still read.
-  const exportRobstrideParams = async ({ onProgress } = {}) => {
-    const rows = robotArmJointRows.filter((r) => String(r?.hit?.vendor) === 'robstride');
+  // Read every writable arm parameter from each arm joint (all joints,
+  // including offline ones) and download the result as a tab-separated .tsv:
+  // columns are joints (J1..J7), rows are registers, cells are raw values. If
+  // the gateway cannot read an individual register, that cell is recorded as
+  // "ERR" and the rest of the joint's params are still read.
+  //
+  // Vendor differences are branched via the isDamiao flag: RobStride addresses
+  // params by hex param_id and reads via robstride_read_param; Damiao addresses
+  // registers by decimal rid and reads via get_register_u32/f32, and excludes
+  // the four identity params (mstId/escId/timeout/canBr) so a re-import cannot
+  // change a motor's CAN address. The joint loop, progress, ERR/offline
+  // handling, and download are shared.
+  const exportArmParams = async ({ onProgress } = {}) => {
+    const vendor = activeParamVendor;
+    const isDamiao = vendor === 'damiao';
+    const rows = robotArmJointRows.filter((r) => String(r?.hit?.vendor) === vendor);
     if (rows.length === 0) {
-      pushLog('robot-arm export params skipped: no robstride joints', 'err');
-      return { error: 'no robstride joints', okCount: 0, total: 0 };
+      pushLog(`robot-arm export params skipped: no ${vendor} joints`, 'err');
+      return { error: `no ${vendor} joints`, okCount: 0, total: 0 };
     }
-    // rw only: must be readable (to export a value) and writable (to import back).
-    const exportDefs = ROBSTRIDE_PARAM_CATALOG.filter(
-      (d) => canRobstrideRead(d.access) && canRobstrideWrite(d.access)
-    );
+    // Describe a joint row for abort logs/alerts: "J<n> esc=0x.. mst=0x..".
+    // The offline alert modal strips to the J<n> token; the esc/mst detail
+    // stays in the event log.
+    const hexId = (id) =>
+      isDamiao ? `0x${id.toString(16).padStart(2, '0')}` : `0x${id.toString(16).padStart(4, '0')}`;
+    const describeExportHit = (r) =>
+      `J${r.joint} esc=${hexId(r.hit.esc_id)} mst=${hexId(r.hit.mst_id)}`;
+
+    // Pre-check: abort before reading or downloading anything if any joint is
+    // offline (hit.online === false). Mirrors importArmParams' gate.
+    const offlineAtStart = rows.filter((r) => !r?.hit?.online);
+    if (offlineAtStart.length > 0) {
+      const jointsList = offlineAtStart.map(describeExportHit);
+      pushLog(`robot-arm export params aborted: offline at start: ${jointsList.join(', ')}`, 'err');
+      return {
+        aborted: { reason: 'offline_at_start', kind: 'export', joints: jointsList },
+        okCount: 0,
+        total: rows.length,
+      };
+    }
+    // Writable (and, for Damiao, non-identity) only. RobStride's catalog marks
+    // read-only params via access='ro'; Damiao's param defs mark identity params
+    // via group='identity' and never round-trip them through export.
+    const exportDefs = isDamiao
+      ? DAMIAO_ARM_PARAM_DEFS.filter((d) => d.writable !== false && d.group !== 'identity')
+      : ROBSTRIDE_PARAM_CATALOG.filter(
+          (d) => canRobstrideRead(d.access) && canRobstrideWrite(d.access)
+        );
+    // RS catalog defs key on .name; DM param defs key on .rid. Use whichever
+    // field exists so the values map is keyed consistently per vendor.
+    const valueKey = (def) => (isDamiao ? def.rid : def.name);
     const total = rows.length;
     onProgress?.({ active: true, done: 0, total, label: 'exporting params...', percent: 0 });
 
     const result = {};
     let done = 0;
-    for (const row of rows) {
+    let aborted = null;
+    // If a read returns an offline/timeout error mid-export, the motor is
+    // unreachable even though its card still showed online (stale state).
+    // Abort immediately — like importArmParams does on a read timeout —
+    // instead of filling the TSV with ERR cells and downloading a useless
+    // file. A post-loop okCount===0 backstop catches non-timeout total
+    // failures (e.g. an unexpected gateway error on every read) the same way.
+    jointLoop: for (const row of rows) {
       const h = row.hit;
       const values = {};
       const online = Boolean(h?.online);
       if (!online) {
-        for (const def of exportDefs) values[def.name] = 'ERR:offline';
+        for (const def of exportDefs) values[valueKey(def)] = 'ERR:offline';
       } else {
         try {
           await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id, {
             enableStreams: false,
           });
           for (const def of exportDefs) {
-            const type = toRobstrideCliType(def.dataType);
-            const ret = await sendCmd(
-              'robstride_read_param',
-              { param_id: def.id, type, timeout_ms: 1000 },
-              3000
-            );
+            const ret = isDamiao
+              ? await sendCmd(
+                  def.dataType === 'u32' ? 'get_register_u32' : 'get_register_f32',
+                  { rid: def.rid, timeout_ms: 1000 },
+                  3000
+                )
+              : await sendCmd(
+                  'robstride_read_param',
+                  {
+                    param_id: def.id,
+                    type: toRobstrideCliType(def.dataType),
+                    timeout_ms: 1000,
+                  },
+                  3000
+                );
             if (ret?.ok) {
-              values[def.name] = Number(getResponseValue(ret));
+              values[valueKey(def)] = Number(getResponseValue(ret));
             } else {
-              // Record the failure in-cell and keep reading the rest.
-              values[def.name] = `ERR:${ret?.error || 'read failed'}`;
+              if (isOfflineTimeout(ret?.error)) {
+                aborted = {
+                  reason: 'timeout',
+                  kind: 'export',
+                  motor: describeExportHit(row),
+                  joints: [describeExportHit(row)],
+                };
+                break jointLoop;
+              }
+              values[valueKey(def)] = `ERR:${ret?.error || 'read failed'}`;
             }
           }
         } catch (e) {
+          if (isOfflineTimeout(e)) {
+            aborted = {
+              reason: 'timeout',
+              kind: 'export',
+              motor: describeExportHit(row),
+              joints: [describeExportHit(row)],
+            };
+            break jointLoop;
+          }
           // Bus-level failure (e.g. setTargetFor/open failed): mark every
           // remaining cell so the joint still appears in the export.
           const busError = e.message || String(e);
           for (const def of exportDefs) {
-            if (!(def.name in values)) values[def.name] = `ERR:${busError}`;
+            const k = valueKey(def);
+            if (!(k in values)) values[k] = `ERR:${busError}`;
           }
         } finally {
           await closeBusQuietly();
         }
       }
-      const failCount = exportDefs.filter((d) => String(values[d.name]).startsWith('ERR')).length;
+      const failCount = exportDefs.filter((d) =>
+        String(values[valueKey(d)]).startsWith('ERR')
+      ).length;
       result[row.joint] = {
         ok: online && failCount === 0,
         online,
@@ -658,11 +729,29 @@ export function useRobotArmOps({
       });
       await sleep(10);
     }
+    if (aborted) {
+      pushLog(`robot-arm export params aborted: ${aborted.motor} offline mid-export`, 'err');
+      onProgress?.({ active: false, done, total, label: 'export aborted', percent: 0 });
+      return { aborted, okCount: 0, total: rows.length };
+    }
+    // Backstop: every joint failed to read (motors unreachable but not flagged
+    // offline, or a non-timeout gateway error on every read). Don't download
+    // an all-ERR TSV — abort with the offline alert listing every joint.
+    const okCount = Object.values(result).filter((x) => x.ok).length;
+    if (okCount === 0) {
+      const jointsList = rows.map(describeExportHit);
+      pushLog('robot-arm export params aborted: all joints failed to read', 'err');
+      onProgress?.({ active: false, done, total, label: 'export aborted', percent: 0 });
+      return {
+        aborted: { reason: 'all_failed', kind: 'export', joints: jointsList },
+        okCount: 0,
+        total: rows.length,
+      };
+    }
     onProgress?.({ active: false, done: total, total, label: 'export done', percent: 100 });
 
     // --- Build a TSV: header + one row per register, columns = joints. ---
     const joints = rows.map((r) => r.joint);
-    const hex = (id) => `0x${id.toString(16).padStart(4, '0')}`;
     // Numeric values are emitted raw; read failures collapse to "ERR" and
     // offline joints to "offline" so an importer can skip non-numeric cells.
     const cellFmt = (v) => {
@@ -673,36 +762,69 @@ export function useRobotArmOps({
       }
       return '';
     };
-    const lines = [
-      '# RobStride arm parameters export (TSV)',
-      '# vendor: robstride',
-      `# joints: ${joints.join(', ')}`,
-      `# writable params: ${exportDefs.length}`,
-      '# cell values: numeric | "ERR" (read failed) | "offline" (joint offline)',
-      '# priority: high = safety/motion/tuning-critical, review before import.',
-      '# import: split each non-"#" line by tab; skip cells that are not numeric.',
-      '',
-      [
-        'param_id',
-        'type',
-        'name',
-        'desc_zh',
-        'access',
-        'priority',
-        ...joints.map((j) => `J${j}`),
-      ].join('\t'),
-      ...exportDefs.map((d) =>
-        [
-          hex(d.id),
-          toRobstrideCliType(d.dataType),
-          d.name,
-          d.descZh || '',
-          d.access,
-          robstrideParamPriority(d),
-          ...joints.map((j) => cellFmt(result[j]?.values?.[d.name])),
-        ].join('\t')
-      ),
-    ];
+    const hex = (id) => `0x${id.toString(16).padStart(4, '0')}`;
+    const lines = isDamiao
+      ? [
+          '# Damiao arm parameters export (TSV)',
+          '# vendor: damiao',
+          `# joints: ${joints.join(', ')}`,
+          `# writable params: ${exportDefs.length}`,
+          '# cell values: numeric | "ERR" (read failed) | "offline" (joint offline)',
+          '# priority: high = safety/motion/tuning-critical, review before import.',
+          '# identity params (mstId/escId/timeout/canBr) are excluded and cannot be imported.',
+          '# import: split each non-"#" line by tab; skip cells that are not numeric.',
+          '',
+          [
+            'rid',
+            'type',
+            'name',
+            'desc_zh',
+            'group',
+            'priority',
+            ...joints.map((j) => `J${j}`),
+          ].join('\t'),
+          ...exportDefs.map((d) =>
+            [
+              String(d.rid),
+              d.dataType === 'u32' ? 'u32' : 'f32',
+              d.variable,
+              d.descZh || '',
+              d.group,
+              damiaoParamPriority(d),
+              ...joints.map((j) => cellFmt(result[j]?.values?.[d.rid])),
+            ].join('\t')
+          ),
+        ]
+      : [
+          '# RobStride arm parameters export (TSV)',
+          '# vendor: robstride',
+          `# joints: ${joints.join(', ')}`,
+          `# writable params: ${exportDefs.length}`,
+          '# cell values: numeric | "ERR" (read failed) | "offline" (joint offline)',
+          '# priority: high = safety/motion/tuning-critical, review before import.',
+          '# import: split each non-"#" line by tab; skip cells that are not numeric.',
+          '',
+          [
+            'param_id',
+            'type',
+            'name',
+            'desc_zh',
+            'access',
+            'priority',
+            ...joints.map((j) => `J${j}`),
+          ].join('\t'),
+          ...exportDefs.map((d) =>
+            [
+              hex(d.id),
+              toRobstrideCliType(d.dataType),
+              d.name,
+              d.descZh || '',
+              d.access,
+              robstrideParamPriority(d),
+              ...joints.map((j) => cellFmt(result[j]?.values?.[d.name])),
+            ].join('\t')
+          ),
+        ];
 
     try {
       const blob = new Blob([`${lines.join('\n')}\n`], {
@@ -717,7 +839,7 @@ export function useRobotArmOps({
       const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(
         d.getHours()
       )}${pad(d.getMinutes())}`;
-      a.download = `robstride-params-${stamp}.tsv`;
+      a.download = `${vendor}-params-${stamp}.tsv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -726,29 +848,38 @@ export function useRobotArmOps({
       pushLog(`robot-arm export params download failed: ${e.message || e}`, 'err');
     }
 
-    const okCount = Object.values(result).filter((x) => x.ok).length;
+    const doneOkCount = Object.values(result).filter((x) => x.ok).length;
     pushLog(
-      `robot-arm export params done ok=${okCount}/${total}`,
-      okCount === total ? 'ok' : 'err'
+      `robot-arm export params done ok=${doneOkCount}/${total}`,
+      doneOkCount === total ? 'ok' : 'err'
     );
-    return { okCount, total, result };
+    return { okCount: doneOkCount, total, result };
   };
 
   // Import a TSV file OR a pre-parsed { joints, rows } structure back into the
-  // arm. The file form parses a TSV produced by exportRobstrideParams (same
-  // format); the parsed form is built from the default template by
-  // buildRobstrideTemplateParsed, so apply-default-template reuses this path
-  // without a TSV file. For each online joint the current value of every
-  // writable row is read and compared; only differing cells are written, and
-  // the joint is persisted to Flash when anything changed. An unchanged set is
-  // a no-op; offline joints are skipped (no bus open). Read-only registers
-  // and non-numeric cells ("ERR"/"offline") are skipped by the TSV parser.
-  // Result per joint: { ok, online, read, written, skipped, saved, errors }.
-  const importRobstrideParams = async ({ file, parsed: parsedIn, onProgress } = {}) => {
-    const rows = robotArmJointRows.filter((r) => String(r?.hit?.vendor) === 'robstride');
+  // arm. The file form parses a TSV produced by exportArmParams (same format);
+  // the parsed form is built from the default template by build*TemplateParsed,
+  // so apply-default-template reuses this path without a TSV file. For each
+  // online joint the current value of every writable row is read and compared;
+  // only differing cells are written, and the joint is persisted to Flash when
+  // anything changed. An unchanged set is a no-op; offline joints are skipped
+  // (no bus open). Read-only / identity / non-numeric cells are skipped by the
+  // vendor TSV parser. Result per joint:
+  // { ok, online, read, written, skipped, saved, errors }.
+  //
+  // Vendor differences are branched via isDamiao: RobStride addresses params by
+  // hex param_id via robstride_read/write_param; Damiao addresses registers by
+  // decimal rid via get/write_register_u32/f32 (with verify), routes ctrlMode
+  // through ensure_mode instead of write_register, and relies on the Damiao TSV
+  // parser to drop the four identity params so they never reach this loop. The
+  // pre-check, disable-all, diff-write, store, and abort flow are shared.
+  const importArmParams = async ({ file, parsed: parsedIn, onProgress } = {}) => {
+    const vendor = activeParamVendor;
+    const isDamiao = vendor === 'damiao';
+    const rows = robotArmJointRows.filter((r) => String(r?.hit?.vendor) === vendor);
     if (rows.length === 0) {
-      pushLog('robot-arm import params skipped: no robstride joints', 'err');
-      return { error: 'no robstride joints' };
+      pushLog(`robot-arm import params skipped: no ${vendor} joints`, 'err');
+      return { error: `no ${vendor} joints` };
     }
 
     let parsed = parsedIn;
@@ -761,7 +892,7 @@ export function useRobotArmOps({
         pushLog(`robot-arm import params read failed: ${e.message || e}`, 'err');
         return { error: `read file failed: ${e.message || e}` };
       }
-      parsed = parseRobstrideParamsTsv(text);
+      parsed = isDamiao ? parseDamiaoParamsTsv(text) : parseRobstrideParamsTsv(text);
       if (!parsed.ok) {
         pushLog(`robot-arm import params rejected: ${parsed.errors.length} format error(s)`, 'err');
         return { error: 'format invalid', errors: parsed.errors };
@@ -776,20 +907,49 @@ export function useRobotArmOps({
       return { error: 'no matching joints', errors: fileErrors };
     }
 
-    const hex = (id) => `0x${id.toString(16).padStart(4, '0')}`;
+    const hex = (id) =>
+      isDamiao ? `0x${id.toString(16).padStart(2, '0')}` : `0x${id.toString(16).padStart(4, '0')}`;
     const describeHit = (joint, h) => `J${joint} esc=${hex(h.esc_id)} mst=${hex(h.mst_id)}`;
 
-    // Pre-check: any joint already offline at start → abort immediately,
+    // Per-vendor branched accessors over a parsed row { def, paramId|rid, type }.
+    const rowId = (pr) => (isDamiao ? pr.rid : pr.paramId);
+    const paramName = (def) => (isDamiao ? def.variable : def.name);
+    const isFloatType = (def) => (isDamiao ? def.dataType === 'f32' : def.dataType === 'Float32');
+    const readCurrent = async (pr) => {
+      const def = pr.def;
+      if (isDamiao) {
+        const op = def.dataType === 'u32' ? 'get_register_u32' : 'get_register_f32';
+        return sendCmd(op, { rid: rowId(pr), timeout_ms: 1000 }, 3000);
+      }
+      const type = toRobstrideCliType(def.dataType);
+      return sendCmd('robstride_read_param', { param_id: rowId(pr), type, timeout_ms: 1000 }, 3000);
+    };
+    const writeValue = async (pr, fileVal) => {
+      const def = pr.def;
+      if (isDamiao) {
+        const op = def.dataType === 'u32' ? 'write_register_u32' : 'write_register_f32';
+        const value = def.dataType === 'u32' ? Math.round(fileVal) : Number(fileVal) || 0;
+        return sendCmd(op, { rid: rowId(pr), verify: true, value, timeout_ms: 1000 }, 3000);
+      }
+      const type = toRobstrideCliType(def.dataType);
+      return sendCmd(
+        'robstride_write_param',
+        { param_id: rowId(pr), type, value: fileVal, timeout_ms: 1000 },
+        3000
+      );
+    };
+
+    // Pre-check: any joint already offline at start -> abort immediately,
     // before disabling or writing anything. List every offline joint so the
     // operator knows exactly what to fix; nothing is written.
     const offlineAtStart = jointsToImport
       .map((j) => ({ joint: j, row: byJoint.get(j) }))
       .filter(({ row }) => !row?.hit?.online);
     if (offlineAtStart.length > 0) {
-      const joints = offlineAtStart.map(({ joint, row }) => describeHit(joint, row.hit));
-      pushLog(`robot-arm import aborted: offline at start: ${joints.join(', ')}`, 'err');
+      const jointsList = offlineAtStart.map(({ joint, row }) => describeHit(joint, row.hit));
+      pushLog(`robot-arm import aborted: offline at start: ${jointsList.join(', ')}`, 'err');
       return {
-        aborted: { reason: 'offline_at_start', joints },
+        aborted: { reason: 'offline_at_start', joints: jointsList },
         total: jointsToImport.length,
         okCount: 0,
         read: 0,
@@ -799,12 +959,12 @@ export function useRobotArmOps({
       };
     }
 
-    // Disable every arm motor before touching any parameter. Writing
-    // run_mode (0x7005) and other runtime quantities to an enabled motor can
-    // move it or be silently ignored by some RobStride firmware variants
-    // (see the host ensure_control_mode note). Disabling first keeps the arm
-    // still and makes the writes reliable. We do NOT re-enable afterwards —
-    // the operator re-enables manually after verifying the result.
+    // Disable every arm motor before touching any parameter. Writing a mode
+    // register (RobStride run_mode / Damiao ctrlMode) to an enabled motor can
+    // move it or be silently ignored by some firmware (see the host
+    // ensure_control_mode note). Disabling first keeps the arm still and makes
+    // the writes reliable. We do NOT re-enable afterwards — the operator
+    // re-enables manually after verifying the result.
     pushLog('robot-arm import: disabling all motors before write', 'info');
     try {
       await disableAllRobotArm();
@@ -816,7 +976,7 @@ export function useRobotArmOps({
     onProgress?.({ active: true, done: 0, total, label: 'importing params...', percent: 0 });
 
     const result = {};
-    const writtenLog = []; // { joint, paramId, name, from, to }
+    const writtenLog = []; // { joint, id, name, from, to }
     let done = 0;
     let aborted = null;
     jointLoop: for (const joint of jointsToImport) {
@@ -827,6 +987,15 @@ export function useRobotArmOps({
       if (!online) {
         tally.errors.push('joint offline');
       } else {
+        // Damiao ctrlMode is handled out-of-band via ensure_mode, not
+        // write_register. If the parsed plan carries a ctrlMode row whose value
+        // differs from the current mode, capture it here and apply it after the
+        // other registers are written (matching writeDamiaoControlParams). For
+        // RobStride run_mode there is no such special path — it goes through
+        // the normal read/compare/write loop below.
+        let pendingModeName = null;
+        let pendingModeFrom = null;
+        let pendingModeTo = null;
         try {
           await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id, {
             enableStreams: false,
@@ -835,30 +1004,27 @@ export function useRobotArmOps({
             const fileVal = pr.values[joint];
             if (fileVal == null) continue; // this joint had no value for this row
             const def = pr.def;
-            const type = pr.type;
-            // Read current value to decide whether a write is needed.
+
+            // Read the current value once (shared across ctrlMode and normal
+            // params). A read timeout/no-ack means the motor just dropped:
+            // abort the whole import and name this motor. Other read failures
+            // are tallied and the row is skipped.
             let cur;
             try {
-              const rret = await sendCmd(
-                'robstride_read_param',
-                { param_id: def.id, type, timeout_ms: 1000 },
-                3000
-              );
+              const rret = await readCurrent(pr);
               if (rret?.ok) {
                 cur = Number(getResponseValue(rret));
               } else {
-                // Motor just dropped (gateway replied with a timeout/no-ack
-                // failure): abort the whole import and name this motor.
                 if (isOfflineTimeout(rret?.error)) {
                   throw new ImportAbort({
                     reason: 'timeout',
                     stage: 'read',
                     motor: describeHit(joint, h),
-                    param: def.name,
+                    param: paramName(def),
                     message: rret?.error || 'read failed',
                   });
                 }
-                tally.errors.push(`${def.name} read: ${rret?.error || 'failed'}`);
+                tally.errors.push(`${paramName(def)} read: ${rret?.error || 'failed'}`);
                 tally.read += 1;
                 continue;
               }
@@ -869,33 +1035,54 @@ export function useRobotArmOps({
                   reason: 'timeout',
                   stage: 'read',
                   motor: describeHit(joint, h),
-                  param: def.name,
+                  param: paramName(def),
                   message: e.message || String(e),
                 });
               }
-              tally.errors.push(`${def.name} read: ${e.message || e}`);
+              tally.errors.push(`${paramName(def)} read: ${e.message || e}`);
               continue;
             }
             tally.read += 1;
+            // ctrlMode (Damiao u32 integer) compares by rounded integer; float
+            // types use a small epsilon; other u32/integer params compare
+            // strictly. RobStride defs have no .key, so the ctrlMode clause
+            // never matches on the RS path and it goes through the normal
+            // float/strict branches like before.
             const same =
-              def.dataType === 'Float32' ? Math.abs(cur - fileVal) < 1e-4 : cur === fileVal;
+              isDamiao && def.key === 'ctrlMode'
+                ? Math.round(cur) === Math.round(fileVal)
+                : isFloatType(def)
+                  ? Math.abs(cur - fileVal) < 1e-4
+                  : isDamiao
+                    ? Math.round(cur) === Math.round(fileVal)
+                    : cur === fileVal;
             if (same) {
               tally.skipped += 1;
               continue;
             }
+            // ctrlMode is not writable via write_register — defer it to
+            // ensure_mode after the other registers are written.
+            if (isDamiao && def.key === 'ctrlMode') {
+              pendingModeName = damiaoModeName(fileVal);
+              pendingModeFrom = cur;
+              pendingModeTo = Math.round(fileVal);
+              continue;
+            }
             try {
-              const wret = await sendCmd(
-                'robstride_write_param',
-                { param_id: def.id, type, value: fileVal, timeout_ms: 1000 },
-                3000
-              );
+              const wret = await writeValue(pr, fileVal);
               if (!wret?.ok) {
                 throw new Error(wret?.error || 'write failed');
               }
               tally.written += 1;
-              writtenLog.push({ joint, paramId: def.id, name: def.name, from: cur, to: fileVal });
+              writtenLog.push({
+                joint,
+                id: rowId(pr),
+                name: paramName(def),
+                from: cur,
+                to: fileVal,
+              });
               pushLog(
-                `robot-arm import J${joint} ${hex(def.id)} ${def.name}: ${cur} -> ${fileVal}`,
+                `robot-arm import J${joint} ${isDamiao ? `rid=${rowId(pr)}` : hex(rowId(pr))} ${paramName(def)}: ${cur} -> ${fileVal}`,
                 'info'
               );
             } catch (e) {
@@ -905,11 +1092,45 @@ export function useRobotArmOps({
                   reason: 'timeout',
                   stage: 'write',
                   motor: describeHit(joint, h),
-                  param: def.name,
+                  param: paramName(def),
                   message: e.message || String(e),
                 });
               }
-              tally.errors.push(`${def.name} write: ${e.message || e}`);
+              tally.errors.push(`${paramName(def)} write: ${e.message || e}`);
+            }
+          }
+          // Apply the deferred Damiao mode switch after the other registers
+          // are written. ensure_mode is the DM equivalent of writing run_mode
+          // on RobStride (which went through the normal loop above).
+          if (pendingModeName) {
+            try {
+              pushLog(`ensuring Damiao ctrlMode ${pendingModeName}...`, 'info');
+              const ret = await sendCmd(
+                'ensure_mode',
+                { mode: pendingModeName, timeout_ms: 2000 },
+                3000
+              );
+              if (!ret?.ok) throw new Error(ret?.error || 'ensure_mode failed');
+              tally.written += 1;
+              writtenLog.push({
+                joint,
+                id: 10,
+                name: 'CTRL_MODE',
+                from: pendingModeFrom,
+                to: pendingModeTo,
+              });
+            } catch (e) {
+              if (e instanceof ImportAbort) throw e;
+              if (isOfflineTimeout(e)) {
+                throw new ImportAbort({
+                  reason: 'timeout',
+                  stage: 'write',
+                  motor: describeHit(joint, h),
+                  param: 'CTRL_MODE',
+                  message: e.message || String(e),
+                });
+              }
+              tally.errors.push(`CTRL_MODE ensure_mode: ${e.message || e}`);
             }
           }
           // Persist the writes for this joint to Flash so they survive
@@ -985,14 +1206,12 @@ export function useRobotArmOps({
     // Consolidated log of every parameter that was actually written, grouped
     // by joint, so the operator can audit what the import changed.
     if (writtenLog.length > 0) {
-      const byJoint = new Map();
+      const byJ = new Map();
       for (const w of writtenLog) {
-        if (!byJoint.has(w.joint)) byJoint.set(w.joint, []);
-        byJoint.get(w.joint).push(`${hex(w.paramId)} ${w.name}=${w.to}`);
+        if (!byJ.has(w.joint)) byJ.set(w.joint, []);
+        byJ.get(w.joint).push(`${isDamiao ? `rid=${w.id}` : hex(w.id)} ${w.name}=${w.to}`);
       }
-      const detail = [...byJoint.entries()]
-        .map(([j, arr]) => `J${j}:[${arr.join(', ')}]`)
-        .join(' ');
+      const detail = [...byJ.entries()].map(([j, arr]) => `J${j}:[${arr.join(', ')}]`).join(' ');
       pushLog(`robot-arm import written ${writtenTotal} cell(s): ${detail}`, 'ok');
     }
     if (aborted) {
@@ -1044,7 +1263,7 @@ export function useRobotArmOps({
     resetPoseRobotArm,
     readRobotArmControlParams,
     writeRobotArmControlParams,
-    exportRobstrideParams,
-    importRobstrideParams,
+    exportArmParams,
+    importArmParams,
   };
 }

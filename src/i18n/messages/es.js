@@ -161,18 +161,25 @@ export const es = {
   arm_params_verify_mismatch: 'Cantidad de diferencias tras relectura',
   arm_apply_default_template: 'Escribir parámetros predeterminados',
   arm_export_params: 'Exportar parámetros',
-  arm_params_export_doing: 'Leyendo y exportando parámetros RS…',
-  arm_params_export_done: 'Parámetros RS exportados a txt',
-  arm_params_export_failed: 'Error al exportar parámetros RS',
+  arm_params_export_doing: 'Leyendo y exportando parámetros…',
+  arm_params_export_done: 'Parámetros exportados a TSV',
+  arm_params_export_failed: 'Error al exportar parámetros',
   arm_import_params: 'Importar parámetros',
   arm_import_params_hint:
     'Elige un TSV exportado: valida formato, lee el actual, escribe y guarda solo celdas distintas',
-  arm_params_import_doing: 'Validando e importando parámetros RS…',
-  arm_params_import_done: 'Parámetros RS importados',
-  arm_params_import_failed: 'Error al importar parámetros RS',
+  arm_params_import_doing: 'Validando e importando parámetros…',
+  arm_params_import_done: 'Parámetros importados',
+  arm_params_import_failed: 'Error al importar parámetros',
   arm_import_format_invalid: 'Formato de archivo de parámetros no válido',
-  arm_import_aborted_offline: 'Importación cancelada — motor(es) desconectado(s) (no se escribió nada):',
-  arm_import_aborted_timeout: 'Importación cancelada — el motor se desconectó (los motores deshabilitados requieren re-enable manual):',
+  arm_import_aborted_offline:
+    'Importación cancelada — motor(es) desconectado(s) (no se escribió nada):',
+  arm_import_aborted_timeout:
+    'Importación cancelada — el motor se desconectó (los motores deshabilitados requieren re-enable manual):',
+  arm_export_aborted_offline:
+    'Exportación cancelada — motor(es) desconectado(s) (no se exportó nada):',
+  arm_export_aborted_timeout: 'Exportación cancelada — el motor se desconectó:',
+  arm_export_aborted_all_failed:
+    'Exportación cancelada — todas las articulaciones fallaron al leer (no se exportó nada):',
   arm_demo_btn: 'Demo',
   arm_demo_list: 'Lista Demo',
   arm_demo_safe_seq: 'Secuencia J1..J7 + vuelta a cero',
@@ -197,7 +204,7 @@ export const es = {
   arm_live_move_failed:
     'Falló el movimiento en vivo; objetivo sincronizado desde el estado del motor.',
   arm_params_template_applied:
-    'Parámetros predeterminados de reBot Arm Damiao escritos (articulaciones 1-6).',
+    'Parámetros predeterminados de reBot Arm Damiao escritos (articulaciones 1-7).',
   arm_params_template_applied_robstride:
     'Parámetros predeterminados de reBot Arm RobStride escritos (articulaciones 1-7).',
   arm_params_writing_cur_kp: 'Escribiendo y guardando cur_kp (0x7010) según plantilla...',

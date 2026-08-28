@@ -241,12 +241,18 @@ export function useRobotArmStudio({
           .join(',')}`,
         'info'
       );
-      const results = await Promise.all(
-        profiles.map(async (p) => {
-          const hit = buildRobotArmHit(firstJoint, p);
-          return probeMotor(hit, probeOptionsForProfile(p, hit));
-        })
-      );
+      // Probe each vendor SEQUENTIALLY, not in parallel. Both probes share one
+      // CAN bus: each does set_target (+ stream enable) -> scan -> close_bus.
+      // Run concurrently, the faster RobStride probe (fast 120ms scan) would
+      // finish first and close_bus, tearing down the bus mid-scan for the
+      // slower Damiao probe (300ms scan) — so parallel probing reliably
+      // misses a DM arm even when its motor is present at joint 1. Sequential
+      // probing (like scanRobotArmAll does per joint) avoids the contention.
+      const results = [];
+      for (const p of profiles) {
+        const hit = buildRobotArmHit(firstJoint, p);
+        results.push(await probeMotor(hit, probeOptionsForProfile(p, hit)));
+      }
       const onlineProfiles = profiles.filter((_, i) => results[i]);
 
       setArmScanProgress({
