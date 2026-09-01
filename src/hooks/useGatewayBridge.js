@@ -198,9 +198,9 @@ export function useGatewayBridge({
     return clientRef.current;
   };
 
-  const sendCmd = async (op, payload = {}, timeoutMs = 8000) => {
+  const sendCmd = async (op, payload = {}, timeoutMs = 8000, opts = undefined) => {
     const client = ensureClient();
-    return client.send(op, payload, timeoutMs);
+    return client.send(op, payload, timeoutMs, opts);
   };
 
   const connectWs = () => {

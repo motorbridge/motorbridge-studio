@@ -64,6 +64,17 @@ export class WsGatewayClient {
         return;
       }
 
+      // Streaming progress events (e.g. robstride scan_progress) carry a
+      // req_id but no `ok` field. Route them to the in-flight request's
+      // onProgress hook instead of treating them as stray async messages.
+      if (typeof msg?.ok !== 'boolean' && msg?.req_id != null) {
+        const p = this.pendingByReqId.get(msg.req_id);
+        if (p?.onProgress) {
+          p.onProgress(msg);
+          return;
+        }
+      }
+
       if (typeof msg?.ok === 'boolean') {
         const reqId = msg?.req_id;
         if (reqId == null) {
@@ -97,7 +108,7 @@ export class WsGatewayClient {
     this.ws = null;
   }
 
-  send(op, payload = {}, timeoutMs = 8000) {
+  send(op, payload = {}, timeoutMs = 8000, { onProgress } = {}) {
     return new Promise((resolve, reject) => {
       if (!this.isConnected()) {
         reject(new Error('ws not connected'));
@@ -110,6 +121,7 @@ export class WsGatewayClient {
         resolve,
         reject,
         reqId,
+        onProgress,
         timer: setTimeout(() => {
           this.pendingByReqId.delete(reqId);
           reject(new Error(`timeout waiting response for op=${op}`));

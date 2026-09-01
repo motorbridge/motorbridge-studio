@@ -156,55 +156,54 @@ export async function runScanOp({
         };
         let normalized = [];
         if (vendor === 'robstride') {
-          // Incremental scan for RobStride: update cards as soon as each ID returns.
-          let phaseDone = 0;
+          // One full-range scan command: let the gateway open one bus per
+          // feedback_id instead of per (motor_id, feedback_id) pair, since
+          // Windows PCAN fails under high-frequency CAN_Initialize cycles.
+          const feedbackIds = Array.isArray(basePayload.feedback_ids) ? basePayload.feedback_ids : [];
           const probeTimeoutMs = Math.max(60, Math.min(timeout, 120));
-          const perProbeWaitMs = 1000;
-          for (let probe = startId; probe <= endId; probe += 1) {
-            const scanPayload = {
-              ...basePayload,
-              start_id: probe,
-              end_id: probe,
-              timeout_ms: probeTimeoutMs,
-            };
-            let ret;
-            try {
-              ret = await sendCmd('scan', scanPayload, perProbeWaitMs);
-            } catch {
-              phaseDone += 1;
-              const done = Math.min(totalSteps, completedSteps + phaseDone);
-              const percent = totalSteps > 0 ? Math.min(100, Math.floor((done / totalSteps) * 100)) : 0;
-              setScanProgress({
-                active: true,
-                done,
-                total: totalSteps,
-                label: `scanning ${vendor}(${model}) ${toHex(startId)}..${toHex(endId)}`,
-                percent,
-              });
-              pushLog(`scan ${vendor} id=${toHex(probe)} timeout(1s)`, 'err');
-              continue;
-            }
-            phaseDone += 1;
-            const done = Math.min(totalSteps, completedSteps + phaseDone);
-            const percent = totalSteps > 0 ? Math.min(100, Math.floor((done / totalSteps) * 100)) : 0;
-            setScanProgress({
-              active: true,
-              done,
-              total: totalSteps,
-              label: `scanning ${vendor}(${model}) ${toHex(startId)}..${toHex(endId)}`,
-              percent,
-            });
-            if (!ret.ok) {
-              pushLog(`scan ${vendor} id=${toHex(probe)} failed: ${ret.error || 'unknown'}`, 'err');
-              continue;
-            }
-            const one = normalizeHits(vendor, ret.data, model);
+          const scanWaitMs = Math.min(
+            180000,
+            Math.max(30000, phaseCount * Math.max(1, feedbackIds.length) * Math.max(120, probeTimeoutMs) * 4)
+          );
+
+          const onProgress = (msg) => {
+            const d = msg?.data;
+            if (!d || d.phase !== 'hit' || !d.hit) return;
+            const one = normalizeHits(vendor, { hits: [d.hit] }, model);
             if (one.length > 0) {
               normalized.push(...one);
               applyHits(one, activeMotorKey);
               if (typeof onFound === 'function') onFound({ vendor, model, count: one.length });
             }
+          };
+
+          const scanPayload = {
+            ...basePayload,
+            start_id: startId,
+            end_id: endId,
+            timeout_ms: probeTimeoutMs,
+            scan_all_feedback_ids: true,
+          };
+
+          let ret;
+          try {
+            ret = await sendCmd('scan', scanPayload, scanWaitMs, { onProgress });
+          } catch (e) {
+            ret = { ok: false, error: e.message || String(e) };
           }
+
+          if (!ret.ok) {
+            pushLog(`scan ${vendor} model=${model} failed: ${ret.error || 'unknown'}`, 'err');
+          } else {
+            // Authoritative final hits; applyHits dedups against the
+            // incremental ones already applied from onProgress.
+            normalized = normalizeHits(vendor, ret.data, model);
+            if (normalized.length > 0) {
+              applyHits(normalized, activeMotorKey);
+              if (typeof onFound === 'function') onFound({ vendor, model, count: normalized.length });
+            }
+          }
+
           completedSteps += phaseCount;
           updateProgress(true);
         } else {
