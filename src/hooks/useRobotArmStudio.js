@@ -35,6 +35,9 @@ export function useRobotArmStudio({
   setActiveMotorKey,
   probeMotor,
   pushLog,
+  // All arm ops grab the same CAN bus; guard on the union, not just this flag.
+  armSelfCheckBusy = false,
+  armBulkBusy = false,
 }) {
   const [armScanBusy, setArmScanBusy] = useState(false);
   const [armScanProgress, setArmScanProgress] = useState({
@@ -171,8 +174,8 @@ export function useRobotArmStudio({
   };
 
   const scanRobotArmAll = async () => {
-    if (armScanBusy) {
-      pushLog('robot-arm scan ignored: previous scan still running', 'err');
+    if (armScanBusy || armSelfCheckBusy || armBulkBusy) {
+      pushLog('robot-arm scan ignored: another arm operation in progress', 'err');
       return null;
     }
 
@@ -216,8 +219,8 @@ export function useRobotArmStudio({
   // same vendor + exists) before switching the dropdown. Any mismatch fails
   // without changing the model.
   const detectRobotArmModel = async () => {
-    if (armScanBusy) {
-      pushLog('robot-arm detect ignored: previous scan still running', 'err');
+    if (armScanBusy || armSelfCheckBusy || armBulkBusy) {
+      pushLog('robot-arm detect ignored: another arm operation in progress', 'err');
       return null;
     }
 

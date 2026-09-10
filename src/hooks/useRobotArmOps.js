@@ -81,11 +81,13 @@ export function useRobotArmOps({
     setActiveMotorKey,
     probeMotor,
     pushLog,
+    armSelfCheckBusy,
+    armBulkBusy,
   });
 
   const runRobotArmBulk = async (name, fn) => {
-    if (armBulkBusy) {
-      pushLog(`robot-arm ${name} blocked: bulk operation in progress`, 'info');
+    if (armScanBusy || armSelfCheckBusy || armBulkBusy) {
+      pushLog(`robot-arm ${name} blocked: another arm operation in progress`, 'info');
       return false;
     }
     setArmBulkBusy(true);
@@ -490,7 +492,7 @@ export function useRobotArmOps({
     });
 
   const runRobotArmSelfCheck = async () => {
-    if (armSelfCheckBusy) return;
+    if (armScanBusy || armSelfCheckBusy || armBulkBusy) return;
     setArmSelfCheckBusy(true);
     setArmSelfCheckReport(null);
     const steps = [];

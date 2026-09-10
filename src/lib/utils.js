@@ -157,6 +157,7 @@ export function normalizeHits(vendor, data, model) {
         pos: Number(h.pos ?? Number.NaN),
         vel: Number(h.vel ?? Number.NaN),
         torq: Number(h.torq ?? Number.NaN),
+        online: true,
         updated_at_ms: now,
       });
       continue;
@@ -181,6 +182,7 @@ export function normalizeHits(vendor, data, model) {
         responder_id: Number(h.responder_id ?? Number.NaN),
         mst_id: Number(h.feedback_id ?? 0xFD),
         ...modelPatch,
+        online: true,
         updated_at_ms: now,
       });
       continue;
@@ -191,6 +193,7 @@ export function normalizeHits(vendor, data, model) {
       probe: Number(h.probe ?? h.motor_id ?? h.node_id ?? 0),
       esc_id: Number(h.motor_id ?? h.node_id ?? h.probe ?? 0),
       mst_id: Number(h.feedback_id ?? 0),
+      online: true,
       updated_at_ms: now,
     });
   }

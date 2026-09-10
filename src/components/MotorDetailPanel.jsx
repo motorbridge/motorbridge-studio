@@ -464,7 +464,13 @@ export function MotorDetailPanel({
         <MetaItem label={t('detect')} value={activeMotor.detected_by || '-'} />
         <MetaItem
           label={t('online')}
-          value={activeMotor.online === false ? t('offline') : t('online_unknown')}
+          value={
+            activeMotor.online === false
+              ? t('offline')
+              : activeMotor.online === true
+                ? t('online')
+                : t('online_unknown')
+          }
         />
         <MetaItem label={t('model')} value={activeMotor.model_guess || activeMotor.model || '-'} />
         <MetaItem

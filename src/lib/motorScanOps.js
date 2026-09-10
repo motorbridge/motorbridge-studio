@@ -108,6 +108,9 @@ export async function runScanOp({
 
     const totalSteps = phases.reduce((acc, p) => acc + p.count, 0);
     let completedSteps = 0;
+    // Per-vendor scan coverage for offline marking: a card in the probed range
+    // that did not respond is offline. ok=false (scan command failed) skips it.
+    const scanCoverage = [];
     setScanProgress({ active: true, done: 0, total: totalSteps, label: tr('scanning', 'scanning...'), percent: 0 });
 
     for (const vendor of activeVendors) {
@@ -119,6 +122,7 @@ export async function runScanOp({
 
       const models = getVendorModels(vendor, cfg.model, damiaoModelCandidates);
       let vendorHits = [];
+      const vendorCoverage = { vendor, startId, endId, foundKeys: new Set(), ok: true };
 
       for (const model of models) {
         let progressTimer = null;
@@ -204,6 +208,9 @@ export async function runScanOp({
             }
           }
 
+          for (const nh of normalized) vendorCoverage.foundKeys.add(motorKey(nh));
+          if (!ret.ok) vendorCoverage.ok = false;
+
           completedSteps += phaseCount;
           updateProgress(true);
         } else {
@@ -216,9 +223,12 @@ export async function runScanOp({
 
           if (!ret.ok) {
             pushLog(`scan ${vendor} model=${model} failed: ${ret.error || 'unknown'}`, 'err');
+            vendorCoverage.ok = false;
+            if (progressTimer) clearInterval(progressTimer);
             continue;
           }
           normalized = normalizeHits(vendor, ret.data, model);
+          for (const nh of normalized) vendorCoverage.foundKeys.add(motorKey(nh));
           if (normalized.length > 0) {
             applyHits(normalized, activeMotorKey);
             if (typeof onFound === 'function') onFound({ vendor, model, count: normalized.length });
@@ -248,12 +258,29 @@ export async function runScanOp({
       }
 
       vendorHits = dedupHitsByVendor(vendorHits);
+      scanCoverage.push(vendorCoverage);
       await closeBusQuietly();
       allFound.push(...vendorHits);
     }
 
     setHits((prev) => {
-      const merged = mergeHitsByVendor(prev, dedupHitsByVendor(allFound));
+      // Mark in-range non-responders offline (scan is an active probe); skip
+      // failed-vendor scans and out-of-range/unscanned cards.
+      const offlineKeys = new Set();
+      for (const cov of scanCoverage) {
+        if (!cov.ok) continue;
+        for (const h of prev) {
+          if (String(h.vendor) !== cov.vendor) continue;
+          const esc = Number(h.esc_id);
+          if (!Number.isFinite(esc) || esc < cov.startId || esc > cov.endId) continue;
+          if (cov.foundKeys.has(motorKey(h))) continue;
+          offlineKeys.add(motorKey(h));
+        }
+      }
+      const marked = prev.map((h) =>
+        offlineKeys.has(motorKey(h)) ? { ...h, online: false } : h,
+      );
+      const merged = mergeHitsByVendor(marked, dedupHitsByVendor(allFound));
       setControls((prevControls) => {
         const next = { ...prevControls };
         for (const h of merged) {

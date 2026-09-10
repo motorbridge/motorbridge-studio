@@ -101,7 +101,9 @@ export function mapResponseToHit(h, data, extra = {}) {
     flags: flags ?? h.flags,
     ...modelPatch,
     ...extra,
-    online: true,
+    // State stream does not author `online` (robstride's cached has_value is
+    // stale after power-off → card jump). Online is owned by the param stream
+    // and scan, which actively probe. Preserve h.online.
     last_check_ms: Date.now(),
     updated_at_ms: Date.now(),
   };
@@ -166,7 +168,9 @@ export function mapParamStreamToHit(h, data) {
     ...patch,
     param_stream_values: values,
     feedback_source: vendor === 'robstride' ? 'robstride_observation_params' : h?.feedback_source,
-    online: true,
+    // Param stream authors `online`: empty values (all reads timed out) →
+    // offline, else online. Single steady-state writer, so no jump.
+    online: Object.keys(values || {}).length > 0,
     last_check_ms: Date.now(),
     updated_at_ms: Date.now(),
   };

@@ -57,6 +57,14 @@ export default function App() {
             <button className="ghostBtn" onClick={() => setHelpOpen(true)}>
               {t('help_show')}
             </button>
+            <button
+              className="ghostBtn"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => studio.scan?.clearDevices()}
+              title={t('confirm_clear_all')}
+            >
+              {t('clear_all_motors')}
+            </button>
           </div>
         </section>
 

@@ -86,7 +86,13 @@ export function MotorCards({
             <div className="motorSignal">
               <div className="motorOnlineBadge">
                 <span className={`dotLive ${hit.online === false ? 'off' : ''}`} />
-                <span className="signalText">{hit.online === false ? t('offline') : t('online_unknown')}</span>
+                <span className="signalText">
+                  {hit.online === false
+                    ? t('offline')
+                    : hit.online === true
+                      ? t('online')
+                      : t('online_unknown')}
+                </span>
               </div>
               <span className={`chip ${control.enabled ? 'chipOk' : ''}`}>
                 {control.enabled ? t('enabled') : t('disabled')}
