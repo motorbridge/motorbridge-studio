@@ -918,3 +918,28 @@
   background: #b42318;
   border-color: #b42318;
 }
+
+.armZeroReference {
+  margin: 0 0 12px;
+}
+
+.armZeroReference figcaption {
+  margin-bottom: 8px;
+  color: #3a4f81;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.armZeroReference .armUrdfViewerShell {
+  height: clamp(180px, 30vh, 280px);
+  min-height: 0;
+}
+
+.armDialogCard:has(.armZeroReference) {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.armZeroReference .armUrdfViewer {
+  height: 100%;
+}

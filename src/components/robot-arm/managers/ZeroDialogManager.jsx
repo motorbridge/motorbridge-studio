@@ -1,20 +1,32 @@
 import React from 'react';
 import { useI18n } from '../../../i18n';
-import { sleep } from '../../../lib/async';
-import { ZERO_SAFE_EPS_RAD } from '../../../lib/robotArm';
 import { ConfirmDialog } from '../../ConfirmDialog';
+import { ArmUrdfViewer } from '../../ArmUrdfViewer';
+import { sleep } from '../../../lib/async';
 import { clampByLimit, jointLimit } from './armMotionUtils';
 
+const ZERO_REFERENCE_TARGETS = {
+  joint1: 0,
+  joint2: 0,
+  joint3: 0,
+  joint4: 0,
+  joint5: 0,
+  joint6: 0,
+  joint7: 0,
+  gripper_joint1: 0,
+  gripper_joint2: 0,
+};
+
 export function ZeroDialogManager({
+  profile,
   robotArmJointRows,
   refreshMotorState,
   zeroAllRobotArm,
-  setLimitWarn,
-  showLimitToast,
   limits,
   children,
 }) {
   const { t } = useI18n();
+  const [zeroReadStatus, setZeroReadStatus] = React.useState(null);
   const [zeroCheckBusy, setZeroCheckBusy] = React.useState(false);
   const [zeroConfirm, setZeroConfirm] = React.useState({
     open: false,
@@ -23,32 +35,7 @@ export function ZeroDialogManager({
     danger: false,
   });
   const zeroConfirmResolverRef = React.useRef(null);
-  const rowsRef = React.useRef(robotArmJointRows);
   const zeroCheckBusyRef = React.useRef(false);
-
-  React.useEffect(() => {
-    rowsRef.current = robotArmJointRows;
-  }, [robotArmJointRows]);
-
-  const computeZeroSafety = React.useCallback((rows) => {
-    const notReady = (rows || [])
-      .map((row) => {
-        const p = Number(row?.hit?.pos);
-        if (!Number.isFinite(p)) return { joint: row.joint, pos: null };
-        return Math.abs(p) <= ZERO_SAFE_EPS_RAD ? null : { joint: row.joint, pos: p };
-      })
-      .filter(Boolean);
-
-    return {
-      ok: notReady.length === 0,
-      notReady,
-    };
-  }, []);
-
-  const zeroSafety = React.useMemo(
-    () => computeZeroSafety(robotArmJointRows),
-    [computeZeroSafety, robotArmJointRows]
-  );
 
   const askZeroConfirm = React.useCallback((cfg) => {
     return new Promise((resolve) => {
@@ -83,43 +70,24 @@ export function ZeroDialogManager({
     zeroCheckBusyRef.current = true;
     setZeroCheckBusy(true);
     try {
-      const preRows = rowsRef.current || [];
-      const refreshedRows = [];
-      for (const row of preRows) {
-        if (!row?.hit) {
-          refreshedRows.push(row);
-          continue;
+      const rows = robotArmJointRows || [];
+      let done = 0;
+      const failed = [];
+      setZeroReadStatus({ reading: true, done, total: rows.length, failed: [] });
+      for (const row of rows) {
+        let hit;
+        try {
+          if (row.hit) hit = await refreshMotorState(row.hit);
+        } catch {
+          // Report this joint as unread and continue checking the remaining joints.
         }
-        const refreshedHit = await refreshMotorState(row.hit);
-        refreshedRows.push({
-          ...row,
-          hit: refreshedHit || { ...row.hit, pos: Number.NaN, online: false },
-        });
+        if (hit?.online && hit.pos != null && Number.isFinite(Number(hit.pos))) done += 1;
+        else failed.push(`J${row.joint}`);
+        setZeroReadStatus({ reading: true, done, total: rows.length, failed: [...failed] });
         await sleep(20);
       }
-      await sleep(80);
-
-      const freshSafety = computeZeroSafety(refreshedRows);
-      if (!freshSafety.ok) {
-        const short = freshSafety.notReady
-          .slice(0, 4)
-          .map((x) => `J${x.joint}${x.pos == null ? '(?)' : `(${x.pos.toFixed(2)})`}`)
-          .join(', ');
-        const more = freshSafety.notReady.length > 4 ? ` +${freshSafety.notReady.length - 4}` : '';
-        const msg = t('arm_zero_all_blocked', {
-          joints: `${short}${more}`,
-          eps: ZERO_SAFE_EPS_RAD.toFixed(2),
-        });
-        setLimitWarn(msg);
-        showLimitToast(msg);
-        const forceConfirm = await askZeroConfirm({
-          title: t('arm_zero_all_force_title'),
-          message: `${msg}\n\n${t('arm_zero_all_force_hint')}`,
-          danger: true,
-        });
-        if (!forceConfirm) return;
-      }
-
+      setZeroReadStatus({ reading: false, done, total: rows.length, failed });
+      if (!rows.length || failed.length) return;
       const c1 = await askZeroConfirm({
         title: t('arm_zero_all_confirm_title'),
         message: t('arm_zero_all_confirm_1'),
@@ -137,15 +105,7 @@ export function ZeroDialogManager({
       zeroCheckBusyRef.current = false;
       setZeroCheckBusy(false);
     }
-  }, [
-    askZeroConfirm,
-    computeZeroSafety,
-    refreshMotorState,
-    setLimitWarn,
-    showLimitToast,
-    t,
-    zeroAllRobotArm,
-  ]);
+  }, [askZeroConfirm, t, zeroAllRobotArm, robotArmJointRows, refreshMotorState]);
 
   return (
     <>
@@ -156,11 +116,23 @@ export function ZeroDialogManager({
         danger={zeroConfirm.danger}
         onCancel={() => closeZeroConfirm(false)}
         onConfirm={() => closeZeroConfirm(true)}
-      />
+      >
+        {zeroReadStatus && (
+          <p role="status">{t('arm_zero_read_complete', { total: zeroReadStatus.total })}</p>
+        )}
+        <figure className="armZeroReference">
+          <figcaption>{t('arm_zero_reference')}</figcaption>
+          <ArmUrdfViewer
+            profile={profile}
+            jointTargets={ZERO_REFERENCE_TARGETS}
+            trailVisible={false}
+          />
+        </figure>
+      </ConfirmDialog>
       {children({
         askZeroConfirm,
         zeroCheckBusy,
-        zeroSafety,
+        zeroReadStatus,
         onZeroAllSafe,
         jointLimit: (joint) => jointLimit(joint, limits),
         clampByLimit,

@@ -116,15 +116,17 @@ export const zh = {
   arm_zero_all: '全部校零',
   arm_reset_pose: '回机械零位',
   arm_bulk_busy: '批量操作执行中，已临时锁定实时拖动与单关节控制。',
-  arm_zero_all_guard_hint: '安全门禁：仅当全部关节位于零位附近才可执行“全部校零”',
-  arm_zero_all_blocked: '未满足安全条件，以下关节未到零位附近（±{{eps}}rad）：{{joints}}',
-  arm_zero_all_force_title: '强制校零确认',
-  arm_zero_all_force_hint:
-    '若你已人工将机械臂摆在机械零位，可继续“强制校零”。这是高风险操作，请谨慎确认。',
-  arm_zero_all_confirm_title: '全部校零确认',
+  arm_zero_all_guard_hint: '校准编码器零点：请参考 URDF 零位姿态，将全部关节置于机械零位。',
+  arm_zero_read_progress: '正在读取关节状态（含夹爪）：{{done}}/{{total}} 已成功。',
+  arm_zero_read_complete: '已读取全部 {{total}} 个关节的状态（含夹爪）。',
+  arm_zero_read_failed:
+    '关节状态未读全：{{done}}/{{total}} 已成功，未读取：{{joints}}。请检查连接后重试，尚未执行校零。',
+  arm_zero_reference: 'URDF 零位参考（含夹爪，全部关节为 0，可拖动旋转）',
+  arm_zero_all_confirm_title: '编码器零点校准',
   arm_zero_all_confirm_1:
-    '危险操作确认：将对全部关节执行“校零并保存”。请确认机械臂已在机械零位且环境安全。是否继续？',
-  arm_zero_all_confirm_2: '二次确认：继续后将写入零点并影响后续限位基准。确认执行“全部校零”？',
+    '请将全部关节（含夹爪）摆至图示机械零位。校准会将当前位置设为编码器零点，不会移动关节。',
+  arm_zero_all_confirm_2:
+    '确认将全部关节（含夹爪）的当前位置设为零点并保存？姿态不正确会影响后续运动和限位。\n\n点击“确认”后请稍等片刻，再点击各关节卡片的“刷新状态”，检查位置读数是否接近 0，确认校零结果。',
   arm_read_params: '读取参数',
   arm_write_params: '写入参数',
   arm_params_title: '关节控制参数',
@@ -203,7 +205,7 @@ export const zh = {
   arm_pos_slider: '位置滑条',
   arm_slider_no_interp_title: '滑条拖动安全提醒',
   arm_slider_no_interp_warn:
-    '提醒：本滑条没有插值规划，输入的目标关节角度差过大会让电机运动过快，每次执行请确保角度差在 5~10 度',
+    '提醒：本滑条以弧度（rad）控制关节角度，没有插值规划。目标值与当前位置差过大可能导致电机快速运动。每次调整建议小步进行，角度差控制在约 0.09～0.17 rad（5～10°）以内。',
   arm_pos_range_hint: '范围: -3.14 .. 3.14',
   arm_live_move: '拖动实时发送',
   arm_live_move_on: '实时模式：拖动即发送',
