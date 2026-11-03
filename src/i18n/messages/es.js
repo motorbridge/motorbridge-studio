@@ -125,17 +125,18 @@ export const es = {
   arm_bulk_busy:
     'Operación por lotes en curso: arrastre en vivo y control por articulación bloqueados temporalmente.',
   arm_zero_all_guard_hint:
-    'Puerta de seguridad: "Calibrar cero todas" solo se permite cuando todas las articulaciones están cerca de cero.',
-  arm_zero_all_blocked:
-    'Fallo de seguridad. Articulaciones fuera de cero (±{{eps}}rad): {{joints}}',
-  arm_zero_all_force_title: 'Confirmación de Cero Forzado',
-  arm_zero_all_force_hint:
-    'Si el brazo está colocado manualmente en cero mecánico, puede continuar con calibración FORZADA. Es una operación de alto riesgo.',
-  arm_zero_all_confirm_title: 'Confirmación de Cero Total',
+    'Calibrar el cero del encoder: coloque todas las articulaciones en el cero mecánico según la referencia URDF.',
+  arm_zero_read_progress: 'Leyendo estados (incluida la pinza): {{done}}/{{total}} correctos.',
+  arm_zero_read_complete: 'Leídos los estados de las {{total}} articulaciones (incluida la pinza).',
+  arm_zero_read_failed:
+    'Estados incompletos: {{done}}/{{total}} correctos; sin leer: {{joints}}. Revise las conexiones y reintente. No se ha iniciado la calibración.',
+  arm_zero_reference:
+    'Cero URDF (todas las articulaciones, incluida la pinza, en 0; arrastre para girar)',
+  arm_zero_all_confirm_title: 'Calibración del cero del encoder',
   arm_zero_all_confirm_1:
-    'Acción peligrosa: esto hará cero+guardar en TODAS las articulaciones. Confirme posición cero mecánica y zona segura. ¿Continuar?',
+    'Coloque todas las articulaciones, incluida la pinza, en el cero mecánico mostrado. La calibración fija sus posiciones actuales como cero del encoder sin moverlas.',
   arm_zero_all_confirm_2:
-    'Segunda confirmación: esto escribe referencias de cero y afecta el límite base. ¿Ejecutar "Calibrar cero todas"?',
+    '¿Fijar y guardar las posiciones actuales de todas las articulaciones, incluida la pinza, como cero? Una postura incorrecta afectará los movimientos y límites posteriores.\n\nTras confirmar, espere unos instantes y pulse Actualizar estado en la tarjeta de cada articulación para comprobar que la posición sea cercana a 0 y verificar la calibración.',
   arm_read_params: 'Leer parámetros',
   arm_write_params: 'Escribir parámetros',
   arm_params_title: 'Parámetros de control',
@@ -225,7 +226,7 @@ export const es = {
   arm_pos_slider: 'Slider de posición',
   arm_slider_no_interp_title: 'Aviso de seguridad del slider',
   arm_slider_no_interp_warn:
-    'Aviso: Este slider no tiene planificación de interpolación. Un delta de ángulo objetivo demasiado grande moverá el motor demasiado rápido. Mantenga cada movimiento entre 5 y 10 grados.',
+    'Aviso: Este slider controla los ángulos articulares en radianes (rad), sin planificación de interpolación. Una diferencia grande entre el objetivo y la posición actual puede causar movimientos rápidos. Use pasos pequeños, limitando cada cambio a unos 0.09–0.17 rad (5–10°).',
   arm_pos_range_hint: 'Rango: -3.14 .. 3.14',
   arm_live_move: 'Mover en vivo al arrastrar',
   arm_live_move_on: 'Modo en vivo ACTIVADO (arrastre envía)',

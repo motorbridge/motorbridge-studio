@@ -1,12 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
-import {
-  ROBOT_ARM_MODELS,
-  ZERO_SAFE_EPS_RAD,
-  jointLimitsForProfile,
-  armVendorForProfile,
-} from '../lib/robotArm';
+import { ROBOT_ARM_MODELS, jointLimitsForProfile, armVendorForProfile } from '../lib/robotArm';
 import { parseNum } from '../lib/utils';
 import { ArmUrdfViewer } from './ArmUrdfViewer';
 import { ProgressBar } from './ProgressBar';
@@ -544,9 +539,8 @@ export function RobotArmPage() {
         <ZeroDialogManager
           robotArmJointRows={robotArmJointRows}
           refreshMotorState={refreshMotorState}
+          profile={armVendorForProfile(robotArmModel)}
           zeroAllRobotArm={zeroAllRobotArm}
-          setLimitWarn={setLimitWarn}
-          showLimitToast={showLimitToast}
           limits={jointLimits}
         >
           {(zero) => (
@@ -581,7 +575,6 @@ export function RobotArmPage() {
                         devMode={devMode}
                         sendCmd={sendCmd}
                         setArmParamOpBusy={setArmParamOpBusy}
-                        askZeroConfirm={zero.askZeroConfirm}
                         canAction={canAction}
                         armToolbarBusy={armToolbarBusy}
                       >
@@ -663,18 +656,32 @@ export function RobotArmPage() {
                                   })}
                                 </div>
                               )}
-                              {!zero.zeroSafety.ok && (
-                                <div className="tip warnText">
-                                  {t('arm_zero_all_guard_hint')} -{' '}
-                                  {t('arm_zero_all_blocked', {
-                                    joints: zero.zeroSafety.notReady
-                                      .map((x) => `J${x.joint}`)
-                                      .join(', '),
-                                    eps: ZERO_SAFE_EPS_RAD.toFixed(2),
-                                  })}
+                              {zero.zeroReadStatus && (
+                                <div
+                                  role="status"
+                                  className={
+                                    zero.zeroReadStatus.reading ||
+                                    (zero.zeroReadStatus.total > 0 &&
+                                      !zero.zeroReadStatus.failed.length)
+                                      ? 'tip'
+                                      : 'tip warnText'
+                                  }
+                                >
+                                  {t(
+                                    zero.zeroReadStatus.reading
+                                      ? 'arm_zero_read_progress'
+                                      : zero.zeroReadStatus.total > 0 &&
+                                          !zero.zeroReadStatus.failed.length
+                                        ? 'arm_zero_read_complete'
+                                        : 'arm_zero_read_failed',
+                                    {
+                                      done: zero.zeroReadStatus.done,
+                                      total: zero.zeroReadStatus.total,
+                                      joints: zero.zeroReadStatus.failed.join(', ') || '—',
+                                    }
+                                  )}
                                 </div>
                               )}
-
                               <div className="armStudio">
                                 <JointList
                                   robotArmJointRows={robotArmJointRows}

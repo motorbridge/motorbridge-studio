@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 
-export function ConfirmDialog({ open, title, message, danger, onCancel, onConfirm }) {
+export function ConfirmDialog({ open, title, message, danger, onCancel, onConfirm, children }) {
   const { t } = useI18n();
   if (!open) return null;
   return createPortal(
@@ -10,6 +10,7 @@ export function ConfirmDialog({ open, title, message, danger, onCancel, onConfir
       <div className="armDialogCard">
         <h3>{title || t('confirm_dialog_title')}</h3>
         <p>{message}</p>
+        {children}
         <div className="row toolbar compactToolbar">
           <button className="ghostBtn" onClick={onCancel}>
             {t('cancel')}

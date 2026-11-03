@@ -212,8 +212,7 @@ describe('MotorDetailPanel control UI', () => {
 });
 
 describe('ParamManager safety confirmations', () => {
-  it('uses the robot-arm confirmation path before writing arm parameters', async () => {
-    const askZeroConfirm = vi.fn().mockResolvedValue(false);
+  it('asks in its own dialog before writing arm parameters and aborts on cancel', async () => {
     const writeRobotArmControlParams = vi.fn();
 
     render(
@@ -235,7 +234,6 @@ describe('ParamManager safety confirmations', () => {
           readRobotArmControlParams={vi.fn()}
           writeRobotArmControlParams={writeRobotArmControlParams}
           devMode
-          askZeroConfirm={askZeroConfirm}
           canAction
           armToolbarBusy={false}
         >
@@ -257,14 +255,14 @@ describe('ParamManager safety confirmations', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Write Params' }));
 
-    await waitFor(() => {
-      expect(askZeroConfirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Confirm Parameter Write',
-          danger: true,
-        })
-      );
-    });
+    // ParamManager owns its confirmation dialog; it must contain only the
+    // write-confirmation copy — never ZeroDialogManager's URDF reference.
+    await screen.findByRole('dialog');
+    expect(screen.getByText('Confirm Parameter Write')).toBeTruthy();
+    expect(screen.queryByText(/URDF zero pose/i)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(writeRobotArmControlParams).not.toHaveBeenCalled();
   });
 });

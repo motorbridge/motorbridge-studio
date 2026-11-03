@@ -125,16 +125,19 @@ export const en = {
   arm_reset_pose: 'Reset Pose',
   arm_bulk_busy:
     'Bulk operation running: live dragging and per-joint controls are temporarily locked.',
-  arm_zero_all_guard_hint: 'Safety gate: "Zero All" is allowed only when all joints are near zero.',
-  arm_zero_all_blocked: 'Safety check failed. Joints not near zero (±{{eps}}rad): {{joints}}',
-  arm_zero_all_force_title: 'Force Zero Confirmation',
-  arm_zero_all_force_hint:
-    'If the arm is manually placed at mechanical zero, you may continue with FORCE zero. This is high-risk.',
-  arm_zero_all_confirm_title: 'Zero All Confirmation',
+  arm_zero_all_guard_hint:
+    'Calibrate encoder zero: place all joints at mechanical zero using the URDF zero-pose reference.',
+  arm_zero_read_progress:
+    'Reading joint states (including gripper): {{done}}/{{total}} successful.',
+  arm_zero_read_complete: 'Read all {{total}} joint states (including gripper).',
+  arm_zero_read_failed:
+    'Joint states incomplete: {{done}}/{{total}} successful; unread: {{joints}}. Check connections and retry. Calibration has not started.',
+  arm_zero_reference: 'URDF zero pose (all joints including the gripper at 0; drag to rotate)',
+  arm_zero_all_confirm_title: 'Encoder Zero Calibration',
   arm_zero_all_confirm_1:
-    'Dangerous action: this will zero+store ALL joints. Confirm arm is at mechanical zero and area is safe. Continue?',
+    'Place all joints, including the gripper, at the mechanical zero pose shown. Calibration sets their current positions as encoder zero without moving the joints.',
   arm_zero_all_confirm_2:
-    'Second confirmation: this writes zero references and affects limit baseline. Execute "Zero All"?',
+    'Set and save the current positions of all joints, including the gripper, as zero? An incorrect pose will affect subsequent motion and limits.\n\nAfter clicking Confirm, wait briefly, then click Refresh State on each joint card to check that its position reading is near 0 and verify calibration.',
   arm_read_params: 'Read Params',
   arm_write_params: 'Write Params',
   arm_params_title: 'Joint Control Params',
@@ -217,7 +220,7 @@ export const en = {
   arm_pos_slider: 'Position Slider',
   arm_slider_no_interp_title: 'Slider Drag Safety Note',
   arm_slider_no_interp_warn:
-    'Note: This slider has no interpolation planning. Too large a target angle delta will move the motor too fast. Keep each move within 5–10 deg.',
+    'Note: This slider controls joint angles in radians (rad), without interpolation planning. A large difference between the target and current position may cause rapid motor motion. Use small steps, keeping each change within about 0.09–0.17 rad (5–10°).',
   arm_pos_range_hint: 'Range: -3.14 .. 3.14',
   arm_live_move: 'Live move while dragging',
   arm_live_move_on: 'Live mode ON (drag sends commands)',
