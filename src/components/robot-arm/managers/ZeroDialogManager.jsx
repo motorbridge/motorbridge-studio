@@ -3,6 +3,7 @@ import { useI18n } from '../../../i18n';
 import { ConfirmDialog } from '../../ConfirmDialog';
 import { ArmUrdfViewer } from '../../ArmUrdfViewer';
 import { sleep } from '../../../lib/async';
+import { useConfirmDialog } from './useConfirmDialog';
 import { clampByLimit, jointLimit } from './armMotionUtils';
 
 const ZERO_REFERENCE_TARGETS = {
@@ -28,47 +29,39 @@ export function ZeroDialogManager({
   const { t } = useI18n();
   const [zeroReadStatus, setZeroReadStatus] = React.useState(null);
   const [zeroCheckBusy, setZeroCheckBusy] = React.useState(false);
-  const [zeroConfirm, setZeroConfirm] = React.useState({
-    open: false,
-    title: '',
-    message: '',
-    danger: false,
-  });
-  const zeroConfirmResolverRef = React.useRef(null);
+  // This dialog belongs to the zero-calibration flow only; ParamManager holds
+  // its own useConfirmDialog instance, so the URDF reference below can render
+  // unconditionally without leaking into param-write confirmations.
+  const {
+    confirmState: zeroConfirm,
+    ask: askZeroConfirm,
+    close: closeZeroConfirm,
+  } = useConfirmDialog();
   const zeroCheckBusyRef = React.useRef(false);
 
-  const askZeroConfirm = React.useCallback((cfg) => {
-    return new Promise((resolve) => {
-      zeroConfirmResolverRef.current = resolve;
-      setZeroConfirm({
-        open: true,
-        title: cfg?.title || '',
-        message: cfg?.message || '',
-        danger: Boolean(cfg?.danger),
-      });
-    });
-  }, []);
-
-  const closeZeroConfirm = React.useCallback((accepted) => {
-    const done = zeroConfirmResolverRef.current;
-    zeroConfirmResolverRef.current = null;
-    setZeroConfirm((prev) => ({ ...prev, open: false }));
-    if (done) done(Boolean(accepted));
-  }, []);
-
+  // Zero-read results describe one specific arm profile/joint set; drop them when
+  // that set changes so a stale "read all N" or "unread Jx" cannot outlive it.
+  // The signature covers joint identity, not just count, so a same-length swap
+  // of which joints are present also counts as a change.
+  const rowsSignature = `${profile || ''}|${(robotArmJointRows || [])
+    .map((r) => r.joint)
+    .join(',')}`;
+  const rowsSignatureRef = React.useRef(rowsSignature);
   React.useEffect(() => {
-    return () => {
-      if (zeroConfirmResolverRef.current) {
-        zeroConfirmResolverRef.current(false);
-        zeroConfirmResolverRef.current = null;
-      }
-    };
-  }, []);
+    rowsSignatureRef.current = rowsSignature;
+    setZeroReadStatus(null);
+  }, [rowsSignature]);
 
   const onZeroAllSafe = React.useCallback(async () => {
     if (zeroCheckBusyRef.current) return;
     zeroCheckBusyRef.current = true;
     setZeroCheckBusy(true);
+    // The profile/joint set captured at flow start. If it changes mid-flow
+    // (arm model switched, joints rescaned), the read results and the user's
+    // confirmations no longer describe the arm zeroAllRobotArm would act on —
+    // abort instead of calibrating the wrong configuration.
+    const flowSignature = rowsSignatureRef.current;
+    const stillCurrent = () => rowsSignatureRef.current === flowSignature;
     try {
       const rows = robotArmJointRows || [];
       let done = 0;
@@ -87,19 +80,32 @@ export function ZeroDialogManager({
         await sleep(20);
       }
       setZeroReadStatus({ reading: false, done, total: rows.length, failed });
+      if (!stillCurrent()) {
+        setZeroReadStatus(null);
+        return;
+      }
       if (!rows.length || failed.length) return;
       const c1 = await askZeroConfirm({
         title: t('arm_zero_all_confirm_title'),
         message: t('arm_zero_all_confirm_1'),
         danger: true,
       });
+      // Plain cancel keeps the read results — the reads genuinely succeeded.
       if (!c1) return;
+      if (!stillCurrent()) {
+        setZeroReadStatus(null);
+        return;
+      }
       const c2 = await askZeroConfirm({
         title: t('arm_zero_all_confirm_title'),
         message: t('arm_zero_all_confirm_2'),
         danger: true,
       });
       if (!c2) return;
+      if (!stillCurrent()) {
+        setZeroReadStatus(null);
+        return;
+      }
       await zeroAllRobotArm();
     } finally {
       zeroCheckBusyRef.current = false;
@@ -130,7 +136,6 @@ export function ZeroDialogManager({
         </figure>
       </ConfirmDialog>
       {children({
-        askZeroConfirm,
         zeroCheckBusy,
         zeroReadStatus,
         onZeroAllSafe,

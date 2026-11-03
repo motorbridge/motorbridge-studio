@@ -11,6 +11,8 @@ import {
   buildDamiaoTemplateParsed,
 } from '../../../lib/robotArm';
 import { parseNum } from '../../../lib/utils';
+import { ConfirmDialog } from '../../ConfirmDialog';
+import { useConfirmDialog } from './useConfirmDialog';
 import { ParamTable } from '../ParamTable';
 
 function createParamValueDefaults(paramDefs) {
@@ -27,12 +29,19 @@ export function ParamManager({
   devMode,
   sendCmd,
   setArmParamOpBusy,
-  askZeroConfirm,
   canAction,
   armToolbarBusy,
   children,
 }) {
   const { t } = useI18n();
+  // Param-write confirmations use their own dialog instance (not
+  // ZeroDialogManager's), so this flow's dialogs stay text-only and cannot
+  // pick up zero-calibration-specific content.
+  const {
+    confirmState: paramConfirm,
+    ask: askParamConfirm,
+    close: closeParamConfirm,
+  } = useConfirmDialog();
   const [paramPanelOpen, setParamPanelOpen] = React.useState(false);
   const [paramBusy, setParamBusy] = React.useState(false);
   const [paramRows, setParamRows] = React.useState([]);
@@ -199,7 +208,7 @@ export function ParamManager({
           })
         ),
       }));
-      const confirmedWrite = await askZeroConfirm({
+      const confirmedWrite = await askParamConfirm({
         title: t('arm_params_write_confirm_title'),
         message: t('arm_params_write_confirm_message'),
         danger: true,
@@ -214,7 +223,7 @@ export function ParamManager({
         )
       );
       if (changedRisky) {
-        const confirmed = await askZeroConfirm({
+        const confirmed = await askParamConfirm({
           title: t('arm_params_risky_write_confirm_title'),
           message: t('arm_params_risky_write_confirm_message'),
           danger: true,
@@ -270,7 +279,7 @@ export function ParamManager({
     }
   }, [
     applyReadResultToRows,
-    askZeroConfirm,
+    askParamConfirm,
     closeEnough,
     paramRows,
     paramSupported,
@@ -487,6 +496,14 @@ export function ParamManager({
           exportParams={exportParams}
           importParams={importParams}
           onClose={() => setParamPanelOpen(false)}
+        />
+        <ConfirmDialog
+          open={paramConfirm.open}
+          title={paramConfirm.title}
+          message={paramConfirm.message}
+          danger={paramConfirm.danger}
+          onCancel={() => closeParamConfirm(false)}
+          onConfirm={() => closeParamConfirm(true)}
         />
         {importAlert.open &&
           createPortal(

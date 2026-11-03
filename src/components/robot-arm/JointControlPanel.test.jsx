@@ -3,6 +3,7 @@ import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { I18nProvider } from '../../i18n';
+import { en } from '../../i18n/messages/en';
 import { MotorStudioProvider } from '../../hooks/useMotorStudioContext';
 import { JointControlPanel } from './JointControlPanel';
 
@@ -140,8 +141,7 @@ describe('JointControlPanel', () => {
     renderPanel({ onSliderTargetChange });
 
     const slider = screen.getByRole('slider');
-    const warn =
-      'Note: This slider has no interpolation planning. Too large a target angle delta will move the motor too fast. Keep each move within 5–10 deg.';
+    const warn = en.arm_slider_no_interp_warn;
 
     fireEvent.change(slider, { target: { value: '1' } });
     expect(onSliderTargetChange).not.toHaveBeenCalled();

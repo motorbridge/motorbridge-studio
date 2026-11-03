@@ -575,7 +575,6 @@ export function RobotArmPage() {
                         devMode={devMode}
                         sendCmd={sendCmd}
                         setArmParamOpBusy={setArmParamOpBusy}
-                        askZeroConfirm={zero.askZeroConfirm}
                         canAction={canAction}
                         armToolbarBusy={armToolbarBusy}
                       >
